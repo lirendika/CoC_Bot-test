@@ -237,6 +237,32 @@ def fix_digits(text):
         return [fix_digits(t) for t in text]
     return text.lower().replace('o', '0').replace('/', '1').replace('i', '1').replace('z', '2').replace('s', '5').replace('b', '6').replace('j', '7').replace('&', '8')
 
+def get_storage_fill_levels():
+    """
+    Measure how full the gold and elixir storages are (0.0-1.0) by reading
+    the horizontal fill bars behind the resource counters (top-right UI).
+    The fill is drawn left-to-right in gold/pink over a dark background, so
+    the colored-pixel fraction ≈ storage fullness.
+    """
+    import cv2
+
+    frame = Frame_Handler.get_frame(grayscale=False)
+    h, w = frame.shape[:2]
+    # Bars span x ≈ 0.843-0.988; scan the whole top-right strip for them
+    region = frame[:int(h * 0.20), int(w * 0.82):]
+    hsv = cv2.cvtColor(region, cv2.COLOR_RGB2HSV)
+    H, S, V = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    bar_w = (0.988 - 0.843) * w
+
+    levels = {}
+    for name, mask in (
+        ("gold", (H >= 20) & (H <= 35) & (S >= 150) & (V >= 150)),
+        ("elixir", (H >= 150) & (H <= 175) & (S >= 90) & (V >= 150)),
+    ):
+        rows = mask.sum(axis=1)
+        levels[name] = min(1.0, float(rows.max()) / bar_w) if len(rows) else 0.0
+    return levels
+
 def parse_time(text):
     import re
     if type(text) is list:
@@ -441,7 +467,7 @@ def get_home_builders(timeout=60, return_amount=True, raise_exception=True, use_
         if time.time() > start + timeout: break
     raise Exception("Failed to get home builders")
 
-def start_coc(timeout=60):
+def start_coc(timeout=60, force=True):
     import time
     from datetime import datetime
     
@@ -453,7 +479,8 @@ def start_coc(timeout=60):
         start = time.time()
         while time.time() - start < timeout:
             if not running(): return False
-            ADB_Manager.adbutils_device.shell(f"am start {'-S' if i==0 else ''} -W -n com.supercell.clashofclans/com.supercell.titan.GameApp")
+            force_flag = '-S' if (i == 0 and force) else ''
+            ADB_Manager.adbutils_device.shell(f"am start {force_flag} -W -n com.supercell.clashofclans/com.supercell.titan.GameApp")
             Input_Handler.click_exit(4, 0.1)
             
             Frame_Handler.get_frame()
@@ -724,15 +751,37 @@ class BlueStacks_Manager:
         except: return False
 
     @classmethod
+    def _kill_zombie_processes(cls):
+        import subprocess
+        if sys.platform != "darwin":
+            return
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "BlueStacks"],
+                capture_output=True, text=True
+            )
+            if result.stdout.strip():
+                subprocess.run(
+                    ["pkill", "-9", "-f", "BlueStacks"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                import time
+                time.sleep(1)
+        except (KeyboardInterrupt, SystemExit): raise
+        except: pass
+
+    @classmethod
     def start(cls, instance_id=None, timeout=60):
         import sys, subprocess, time
-        
+
         instance_id = instance_id if instance_id is not None else INSTANCE_ID
-        
+
         if cls.check():
             if configs.DEBUG: print("Bluestacks already running.")
             return
-        
+
+        cls._kill_zombie_processes()
+
         str_target_instance_name = cls.internal_instance_name if cls.internal_instance_name is not None else ""
         if sys.platform == "darwin":
             subprocess.Popen(
@@ -765,9 +814,13 @@ class BlueStacks_Manager:
         while time.time() - start_time < timeout:
             if cls.check():
                 if configs.DEBUG: print("BlueStacks started.")
+                try:
+                    ADB_Manager.adbutils_device.shell("am force-stop com.supercell.clashofclans")
+                except (KeyboardInterrupt, SystemExit): raise
+                except: pass
                 return
             time.sleep(0.5)
-        
+
         raise Exception("BlueStacks failed to start.")
 
     @classmethod
@@ -775,18 +828,23 @@ class BlueStacks_Manager:
         import time
 
         if not cls.check():
+            cls._kill_zombie_processes()
             if configs.DEBUG: print("BlueStacks stopped.")
             return
-        ADB_Manager.adbutils_device.shell("reboot -p")
+
+        try:
+            ADB_Manager.adbutils_device.shell("reboot -p")
+        except (KeyboardInterrupt, SystemExit): raise
+        except: pass
 
         start_time = time.time()
         while time.time() - start_time < timeout:
             if not cls.check():
-                if configs.DEBUG: print("BlueStacks stopped.")
-                return
+                break
             time.sleep(0.5)
-        
-        raise Exception("BlueStacks failed to stop.")
+
+        cls._kill_zombie_processes()
+        if configs.DEBUG: print("BlueStacks stopped.")
 
     @classmethod
     def restart(cls):
@@ -823,6 +881,41 @@ class Task_Handler:
                 cls.cached_exclusions = res.json().get("exclusions", [])
                 return cls.cached_exclusions
         return None
+
+    settings_cache_valid = False
+    cached_settings = {}
+
+    @classmethod
+    def get_settings(cls, use_cached=False):
+        import requests
+
+        if use_cached and cls.settings_cache_valid:
+            return cls.cached_settings
+        base = None
+        if WEB_APP_URL != "":
+            base = WEB_APP_URL
+        elif configs.LOCAL_GUI and TEMP_CACHE.get("gui_port") is not None:
+            base = f"http://localhost:{TEMP_CACHE['gui_port']}"
+        if base is None: return None
+        res = requests.get(f"{base}/{INSTANCE_ID}/settings", timeout=(10, 20))
+        if res.status_code == 200:
+            cls.settings_cache_valid = True
+            cls.cached_settings = res.json().get("settings", {})
+            return cls.cached_settings
+        return None
+
+    @classmethod
+    def setting(cls, key, default, **kwargs):
+        """Numeric setting from the GUI, falling back to the given default
+        (typically the configs.py value) when no GUI is reachable."""
+        try:
+            settings = cls.get_settings(**kwargs)
+            if settings is not None and key in settings:
+                return type(default)(settings[key])
+            raise Exception("No external settings source available")
+        except (KeyboardInterrupt, SystemExit): raise
+        except:
+            return default
 
     @classmethod
     def home_base_priority_excluded(cls, **kwargs):
@@ -955,6 +1048,39 @@ class Task_Handler:
         except (KeyboardInterrupt, SystemExit): raise
         except:
             return not configs.ASSIGN_LAB_ASSISTANT
+
+    @classmethod
+    def wall_focus_excluded(cls, **kwargs):
+        try:
+            exclusions = cls.get_exclusions(**kwargs)
+            if exclusions is not None:
+                return "wall_focus" in exclusions
+            raise Exception("No external exclusion source available")
+        except (KeyboardInterrupt, SystemExit): raise
+        except:
+            return not configs.WALL_FOCUS
+
+    @classmethod
+    def smart_attack_excluded(cls, **kwargs):
+        try:
+            exclusions = cls.get_exclusions(**kwargs)
+            if exclusions is not None:
+                return "smart_attack" in exclusions
+            raise Exception("No external exclusion source available")
+        except (KeyboardInterrupt, SystemExit): raise
+        except:
+            return not configs.SMART_ATTACK
+
+    @classmethod
+    def ai_attack_excluded(cls, **kwargs):
+        try:
+            exclusions = cls.get_exclusions(**kwargs)
+            if exclusions is not None:
+                return "ai_attack" in exclusions
+            raise Exception("No external exclusion source available")
+        except (KeyboardInterrupt, SystemExit): raise
+        except:
+            return not configs.AI_ATTACK
 
     @classmethod
     def builder_apprentice_excluded(cls, **kwargs):
@@ -1213,20 +1339,45 @@ class Input_Handler:
         builder.up(pointer)
         builder.publish(ADB_Manager.minitouch_device.connection)
 
+    # Humanization: every synthetic tap gets a small positional jitter, a
+    # random touch pressure, a random press duration, and a random pre-tap
+    # delay so no two inputs are pixel/timing-identical
+    HUMANIZE = True
+
+    @classmethod
+    def _jitter(cls, x, y, mag=0.0025):
+        import numpy as np
+        if not cls.HUMANIZE: return x, y
+        x += float(np.random.uniform(-mag, mag))
+        y += float(np.random.uniform(-mag, mag))
+        return min(max(x, 0.002), 0.998), min(max(y, 0.002), 0.998)
+
     @classmethod
     def click(cls, x, y, n=1, delay=0, pointer=0):
         import time
+        import numpy as np
         from pyminitouch import CommandBuilder
         if x < 0: x = 1 + x
         if y < 0: y = 1 + y
+        x, y = cls._jitter(x, y)
         MAX_X = int(ADB_Manager.minitouch_device.connection.max_x)
         MAX_Y = int(ADB_Manager.minitouch_device.connection.max_y)
         x = int(x * MAX_X)
         y = int(y * MAX_Y)
-        builder = CommandBuilder()
         for _ in range(n):
-            builder.down(pointer, x, y, 100)
+            if cls.HUMANIZE:
+                time.sleep(float(np.random.uniform(0.02, 0.09)))
+                # Re-jitter each repeat by a few pixels
+                rx = x + int(np.random.randint(-4, 5))
+                ry = y + int(np.random.randint(-4, 5))
+                pressure = int(np.random.randint(55, 120))
+                press_ms = int(np.random.randint(35, 90))
+            else:
+                rx, ry, pressure, press_ms = x, y, 100, 0
+            builder = CommandBuilder()
+            builder.down(pointer, rx, ry, pressure)
             builder.commit()
+            if press_ms > 0: builder.wait(press_ms)
             builder.up(pointer)
             builder.publish(ADB_Manager.minitouch_device.connection)
             time.sleep(delay)
@@ -1261,16 +1412,30 @@ class Input_Handler:
         x2 = int(x2 * MAX_X)
         y2 = int(y2 * MAX_Y)
         
-        x_points = np.linspace(x1, x2, inter_points + 2, dtype=int)
-        y_points = np.linspace(y1, y2, inter_points + 2, dtype=int)
+        x_points = np.linspace(x1, x2, inter_points + 2, dtype=float)
+        y_points = np.linspace(y1, y2, inter_points + 2, dtype=float)
         dt = duration / (inter_points + 1)
-        
-        builder.down(pointer, x1, y1, pressure=100)
+
+        # A human finger never draws a perfect line: bow the path slightly
+        # sideways with a sine arc of random amplitude and direction
+        if cls.HUMANIZE and inter_points > 0:
+            dx, dy = x2 - x1, y2 - y1
+            norm = (dx ** 2 + dy ** 2) ** 0.5
+            if norm > 1:
+                perp_x, perp_y = -dy / norm, dx / norm
+                bow = np.sin(np.linspace(0, np.pi, inter_points + 2)) * np.random.uniform(-0.006, 0.006) * min(MAX_X, MAX_Y)
+                x_points = x_points + bow * perp_x + np.random.uniform(-2, 2, len(x_points))
+                y_points = y_points + bow * perp_y + np.random.uniform(-2, 2, len(y_points))
+        x_points = np.clip(x_points, 0, MAX_X).astype(int)
+        y_points = np.clip(y_points, 0, MAX_Y).astype(int)
+
+        pressure = int(np.random.randint(60, 115)) if cls.HUMANIZE else 100
+        builder.down(pointer, x_points[0], y_points[0], pressure=pressure)
         builder.publish(ADB_Manager.minitouch_device.connection)
         for x, y in zip(x_points, y_points):
-            builder.move(pointer, x, y, pressure=100)
+            builder.move(pointer, x, y, pressure=pressure)
             builder.publish(ADB_Manager.minitouch_device.connection)
-            if dt > 0: time.sleep(dt / 1000)
+            if dt > 0: time.sleep(dt / 1000 * (np.random.uniform(0.75, 1.35) if cls.HUMANIZE else 1))
         if hold_end_time > 0: time.sleep(hold_end_time / 1000)
         builder.up(pointer)
         builder.publish(ADB_Manager.minitouch_device.connection)

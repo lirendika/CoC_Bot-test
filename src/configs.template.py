@@ -29,6 +29,10 @@ START_FROM_MENU_TOP = True
 OPEN_HOME_BUILDERS = 0 # number of home base builders to keep open (not upgrading), suggested to be 0 for maximum efficiency
 
 UPGRADE_HEROES = True # can be overridden on desktop or web app
+WALL_FOCUS = False # keep 1 builder idle and dump spare loot into walls whenever affordable (can be overridden on desktop or web app)
+WALL_FOCUS_MIN_STORAGE_PCT = 50 # only start wall upgrades when a storage bar is at least this % full (alternates farming and walls)
+MIN_LOOT_GOLD = 0 # skip enemy bases with less available gold than this ("Next" until found); 0 = disabled
+MIN_LOOT_ELIXIR = 0 # skip enemy bases with less available elixir than this ("Next" until found); 0 = disabled
 UPGRADE_HOME_BASE = True # can be overridden on desktop or web app
 UPGRADE_HOME_LAB = True # can be overridden on desktop or web app
 ASSIGN_LAB_ASSISTANT = True # can be overridden on desktop or web app
@@ -128,6 +132,14 @@ ATTACK_SLOT_RANGE = (0, 100) # inclusive, first slot is index 0
 EXCLUDE_CLAN_TROOPS = True
 ATTACK_HOME_BASE = True # can be overridden on desktop or web app
 ATTACK_BUILDER_BASE = True # can be overridden on desktop or web app
+
+# Smart Attack Settings (ported from MyBot.run/ClashAttack)
+SMART_ATTACK = True          # Enable smart side detection & wave-based deployment
+AI_ATTACK = False            # Use the Groq vision model to pick the attack side(s); falls back to the loot heuristic on failure (needs GROQ_API_KEY, can be overridden on desktop or web app)
+DEPLOY_SPREAD_POINTS = 5     # Number of spread points per side for troop deployment
+SMART_ATTACK_INSIDE_PCT = 60 # % of resources inside the base to force a single-side attack (MyBot.run "Inside Percentage")
+SMART_ATTACK_OUTSIDE_PCT = 50 # % of resources near the border to attack every side holding loot (MyBot.run "Outside Percentage")
+TANK_SLOTS = [] # army slot indices (0-based, matching barracks order) to deploy first as tanks; empty = auto (troops with the smallest counts lead)
 
 ########################
 # == System Configs == #

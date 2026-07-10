@@ -12,6 +12,12 @@ class Upgrader:
         "Royal Champion",
         "Dragon Duke"
     ]
+
+    # Never auto-select these from the random upgrade list — they cost gems
+    gem_purchase_names = [
+        "Builder's Hut",
+        "Builder Hut",
+    ]
     
     def __init__(self):
         self.assets = Asset_Manager.upgrader_assets
@@ -44,6 +50,106 @@ class Upgrader:
             lambda: Frame_Handler.locate(self.assets["confirm"], grayscale=False, thresh=0.85, use_cached=True),
             timeout=timeout
         )
+
+    def _wall_locate_all(self, asset_name, thresh=0.90):
+        # Enabled wall-bar button labels are white; disabled ones turn salmon
+        # and drop below ~0.81 confidence, so thresh 0.90 sees only enabled
+        locs = Frame_Handler.locate(self.assets[asset_name], grayscale=False, thresh=thresh, use_cached=True, return_all=True)
+        return [(x, y) for x, y in locs if x is not None and y is not None]
+
+    def _wall_price_status(self, x, y):
+        """Status of the cost text above a wall Upgrade button at (x, y):
+        "white" = affordable, "red" = too expensive, "none" = no price there."""
+        import numpy as np
+        frame = Frame_Handler.get_frame(grayscale=False, use_cached=True)
+        h, w = frame.shape[:2]
+        sec = frame[int(h*(y-0.128)):int(h*(y-0.088)), int(w*(x-0.05)):int(w*(x+0.05))]
+        if sec.size == 0: return "none"
+        r, g, b = sec[..., 0].astype(int), sec[..., 1].astype(int), sec[..., 2].astype(int)
+        salmon = int(((np.abs(r-255) < 40) & (np.abs(g-136) < 40) & (np.abs(b-127) < 40)).sum())
+        white = int(((r > 225) & (g > 225) & (b > 225)).sum())
+        if salmon >= 80 and salmon > white: return "red"
+        if white >= 80: return "white"
+        return "none"
+
+    def _wall_upgrade_buttons(self):
+        """Locate the per-currency Upgrade buttons on the wall action bar with
+        their price status, left (gold) to right (elixir)."""
+        # "Upgrade More" also contains the word "Upgrade" — drop matches that
+        # overlap it, then drop anything without a price above it
+        more = self._wall_locate_all("wall_upgrade_more")
+        btns = []
+        for x, y in self._wall_locate_all("wall_upgrade"):
+            if any(abs(x - mx) < 0.04 for mx, my in more): continue
+            status = self._wall_price_status(x, y)
+            if status != "none": btns.append((x, y, status))
+        return sorted(btns)
+
+    def _wall_batch_upgrade(self, max_walls=200):
+        """
+        Complete one wall upgrade transaction via the wall action bar
+        (calibrated live on 2026-07 UI):
+        [Remove Wall -1] [Add Wall +10] [Add Wall +1] [Upgrade 🪙] [Upgrade 💧]
+
+        1. Click "Upgrade More" to open the piece-count stepper
+        2. Click "Add Wall" (+1, the rightmost) repeatedly while at least one
+           currency can still pay the batch
+        3. If both prices turn red (overshoot), click "Remove Wall" until one
+           turns white again
+        4. Pay with the Upgrade button whose price is white (gold first),
+           then confirm the "Upgrade Walls?" Okay popup
+        """
+        import time
+
+        # Open the stepper (absent when only a single wall can be selected)
+        Frame_Handler.get_frame()
+        more = self._wall_locate_all("wall_upgrade_more")
+        if more:
+            Input_Handler.click(*more[0])
+            time.sleep(0.8)
+
+        added = 0
+        for _ in range(max_walls):
+            Frame_Handler.get_frame()
+            btns = self._wall_upgrade_buttons()
+            if not btns: break
+            if all(s == "red" for _, _, s in btns):
+                # Overshot — step back until one currency can pay again
+                for _ in range(12):
+                    rm = self._wall_locate_all("wall_remove")
+                    if not rm: break
+                    Input_Handler.click(*max(rm, key=lambda p: p[0]))
+                    time.sleep(0.4)
+                    Frame_Handler.get_frame()
+                    btns = self._wall_upgrade_buttons()
+                    if any(s == "white" for _, _, s in btns): break
+                break
+            adds = self._wall_locate_all("wall_add")
+            if not adds: break # "Add Wall" disabled: every wall is in the batch
+            Input_Handler.click(*max(adds, key=lambda p: p[0])) # rightmost = +1
+            added += 1
+            time.sleep(0.35)
+
+        # Pay with whichever currency is white — gold (leftmost) first
+        Frame_Handler.get_frame()
+        payable = [(x, y) for x, y, s in self._wall_upgrade_buttons() if s == "white"]
+        if not payable:
+            Input_Handler.click_exit(2, 0.3)
+            return None
+        Input_Handler.click(*payable[0])
+        time.sleep(0.8)
+
+        # Batches confirm via an "Upgrade Walls for N Gold?" popup with an
+        # Okay button; a single piece (x1) instead opens the standard upgrade
+        # info screen with a green Confirm button — click whichever appears
+        def locate_confirmation():
+            x, y = Frame_Handler.locate(Asset_Manager.attacker_assets["okay"], thresh=0.85)
+            if x is not None and y is not None: return x, y
+            return Frame_Handler.locate(self.assets["confirm"], grayscale=False, thresh=0.85, use_cached=True)
+        click_with_timeout(locate_confirmation, timeout=4)
+        time.sleep(0.5)
+        print(f"🧱 Wall batch: upgraded {added + 1} wall piece(s) in one transaction")
+        return "Wall"
 
     def _click_builder_confirm(self, timeout=5):
         return click_with_timeout(
@@ -321,8 +427,9 @@ class Upgrader:
             
             town_hall_template = [render_text("Town Hall", "CCBackBeat", 27)]
             hero_templates = [render_text(hero, "SupercellMagic", 19) for hero in self.hero_names]
+            gem_templates = [render_text(name, "CCBackBeat", 27) for name in self.gem_purchase_names]
             heros_excluded = Task_Handler.heroes_excluded()
-            
+
             def locate_upgrade():
                 frame = Frame_Handler.get_frame(grayscale=False)
                 frame_gray = Frame_Handler.grayscale(frame)
@@ -334,12 +441,14 @@ class Upgrader:
                 if len(potential_y_locs) == 0: return None, None
                 potential_y_locs = potential_y_locs / WINDOW_DIMS[1] + menu_top
                 if y_sug is not None: potential_y_locs = potential_y_locs[potential_y_locs > y_sug]
-                
+
                 # Locate invalid upgrades
-                locs = Frame_Handler.batch_locate(town_hall_template + hero_templates, frame_gray, thresh=0.80, ref="lc", null_val=-1)
+                locs = Frame_Handler.batch_locate(town_hall_template + hero_templates + gem_templates, frame_gray, thresh=0.80, ref="lc", null_val=-1)
                 town_hall_loc = locs[0]
-                hero_locs = locs[1:]
-                invalid_locs = [town_hall_loc]
+                hero_locs = locs[1:1+len(hero_templates)]
+                gem_locs = locs[1+len(hero_templates):]
+                # Gem-purchase items (e.g. Builder's Hut) are ALWAYS off-limits
+                invalid_locs = [town_hall_loc] + gem_locs
                 if heros_excluded:
                     invalid_locs += hero_locs
                 invalid_y_locs = np.array(invalid_locs)[:, 1]
@@ -394,9 +503,9 @@ class Upgrader:
             return None
 
     @require_exit()
-    def home_specified_upgrade(self, upgrade_text):
+    def home_specified_upgrade(self, upgrade_text, wall_batch=False, ignore_insufficient=False):
         import time, numpy as np
-        
+
         try:
             # Render templates
             if type(upgrade_text) == str: upgrade_text = [upgrade_text]
@@ -433,17 +542,19 @@ class Upgrader:
                     for x, y in items:
                         if x is not None and y is not None and (y_sug is None or (y_sug is not None and y > y_sug)):
                             section = Frame_Handler.crop(frame, menu_left, y-0.02, menu_right, y+0.02)
-                            sufficient_resources = not check_color((255, 136, 127), section, tol=10)
+                            # The list only shows the gold price — walls can also be
+                            # paid with elixir, so a red price doesn't mean unaffordable
+                            sufficient_resources = ignore_insufficient or not check_color((255, 136, 127), section, tol=10)
                             if sufficient_resources:
                                 # Check that located upgrade name is left aligned
-                                if abs(x - menu_left) < 0.01:
+                                if -0.005 < (x - menu_left) < 0.05:
                                     return x, y
                                 # Or if it is left aligned to "New" label
                                 new_x, new_y = Frame_Handler.locate(render_text("New", "CCBackBeat", 27, color=(13, 255, 13)), filter_color((13, 255, 13), section), thresh=0.70, grayscale=False, ref="rc")
                                 if new_x is not None and new_y is not None and abs(x - (menu_left + new_x/section.shape[1])) < 0.05:
                                     return x, y
                 return None, None
-            
+
             x, y = self._scroll_locate_upgrade(
                 locate_upgrade,
                 menu_left,
@@ -452,24 +563,28 @@ class Upgrader:
                 menu_bottom,
                 dir="down" if configs.START_FROM_MENU_TOP else "up",
             )
-            
+
             if x is None or y is None: return None
             Input_Handler.click(x_sug, y)
             time.sleep(0.5)
-            
+
             # Hero upgrades go directly to confirm screen now
             in_hero_hall = not get_home_builders(0, return_amount=False, raise_exception=False)
             if in_hero_hall:
                 if Task_Handler.heroes_excluded(): return None
             else:
                 self._click_home_builders()
-                
+
+                # Walls use their own action bar (stepper + dual-currency pay)
+                if wall_batch:
+                    return self._wall_batch_upgrade()
+
                 if not self._click_upgrade(): return None
                 time.sleep(0.5)
-            
+
             # Get upgrade name
             upgrade_name = self._get_upgrade_name()
-            
+
             # Click confirm button
             if not self._click_home_confirm(): return None
             time.sleep(0.5)
@@ -1007,7 +1122,12 @@ class Upgrader:
         
         Input_Handler.zoom(dir="out")
         Input_Handler.swipe_down()
-        
+
+        # Wall focus: reserve 1 builder for wall upgrades so regular upgrades
+        # never occupy the last builder
+        wall_focus = not Task_Handler.wall_focus_excluded(use_cached=True)
+        open_builders = max(OPEN_HOME_BUILDERS, 1) if wall_focus else max(0, OPEN_HOME_BUILDERS)
+
         # Building upgrades
         upgrades_started = []
         if not exclude_base:
@@ -1016,7 +1136,7 @@ class Upgrader:
                 counter += 1
                 try:
                     initial_builders = get_home_builders(1)
-                    if initial_builders <= max(0, OPEN_HOME_BUILDERS): break
+                    if initial_builders <= open_builders: break
                     upgraded = self.home_upgrade()
                     time.sleep(0.5)
                     final_builders = get_home_builders(1)
@@ -1027,6 +1147,39 @@ class Upgrader:
                     else: break
                 except (KeyboardInterrupt, SystemExit): raise
                 except: pass
+
+        # Wall focus: a wall upgrade needs 1 idle builder. We reserve one above
+        # (open_builders) so a builder stays free, then keep upgrading walls
+        # while an idle builder is available and gold/elixir is enough. This runs
+        # even when regular building upgrades are OFF (exclude_base) so wall focus
+        # works as a standalone "always dump loot into walls" mode.
+        if wall_focus:
+            # Only dump loot into walls once a storage is reasonably full, so
+            # farming and wall upgrades alternate (attack → fill → dump → attack)
+            min_pct = Task_Handler.setting("wall_focus_min_storage_pct", getattr(configs, "WALL_FOCUS_MIN_STORAGE_PCT", 50)) / 100
+            try:
+                levels = get_storage_fill_levels()
+                storage_ready = max(levels.values()) >= min_pct
+                if not storage_ready:
+                    print(f"🧱 Wall focus: storages below {min_pct:.0%} "
+                          f"(gold {levels['gold']:.0%}, elixir {levels['elixir']:.0%}) — farming first")
+            except (KeyboardInterrupt, SystemExit): raise
+            except: storage_ready = True
+
+            wall_batches = 0
+            while storage_ready and wall_batches < MAX_UPGRADES_PER_CHECK:
+                try:
+                    if get_home_builders(1) < 1: break   # need an idle builder
+                    # Wall batch: "Add Wall" is spammed on the upgrade popup to
+                    # stack as many pieces as resources can pay in one
+                    # transaction (gold or elixir, whichever confirm is green)
+                    if self.home_specified_upgrade("Wall", wall_batch=True, ignore_insufficient=True) is None: break
+                    wall_batches += 1
+                    time.sleep(0.5)
+                except (KeyboardInterrupt, SystemExit): raise
+                except: break
+            if wall_batches > 0: upgrades_started.append(f"{wall_batches} wall batch(es)")
+
         if not Task_Handler.builder_apprentice_excluded():
             self.assign_builder_apprentice()
         

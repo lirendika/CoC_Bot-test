@@ -14,6 +14,12 @@ NOTIFICATION_CACHE_SIZE = 3
 app = Flask(__name__)
 CORS(app)
 
+DEFAULT_SETTINGS = {
+    "min_loot_gold": 0,
+    "min_loot_elixir": 0,
+    "wall_focus_min_storage_pct": 50,
+}
+
 class Instance:
     def __init__(
         self,
@@ -21,27 +27,31 @@ class Instance:
         run_status="",
         end_time=0,
         exclusions=set(),
-        notifications=deque(maxlen=NOTIFICATION_CACHE_SIZE)
+        notifications=deque(maxlen=NOTIFICATION_CACHE_SIZE),
+        settings=None
     ):
         self.id = id
         self.run_status = run_status
         self.end_time = end_time
         self.exclusions = exclusions
         self.notifications = notifications
-    
+        self.settings = dict(DEFAULT_SETTINGS)
+        if settings: self.settings.update({k: v for k, v in settings.items() if k in DEFAULT_SETTINGS})
+
     def __eq__(self, other):
         return self.id == other.id
-    
+
     def __hash__(self):
         return hash(self.id)
-    
+
     def to_dict(self):
         return {
             "id": self.id,
             "run_status": self.run_status,
             "end_time": self.end_time,
             "exclusions": sorted(list(self.exclusions)),
-            "notifications": list(self.notifications)
+            "notifications": list(self.notifications),
+            "settings": self.settings
         }
     
     def get_notifications(self, limit=NOTIFICATION_CACHE_SIZE):
@@ -83,7 +93,8 @@ def get_known_instances():
             run_status=info.get("run_status", ""),
             end_time=info.get("end_time", 0),
             exclusions=set(info.get("exclusions", [])),
-            notifications=deque(info.get("notifications", []), maxlen=NOTIFICATION_CACHE_SIZE)
+            notifications=deque(info.get("notifications", []), maxlen=NOTIFICATION_CACHE_SIZE),
+            settings=info.get("settings", None)
         )
 
 def update_known_instances():
@@ -107,7 +118,8 @@ def handle_instance(id):
         current_time=time.time(),
         notifications=instance.get_notifications(),
         exclusions=list(instance.exclusions),
-        run_status=instance.run_status
+        run_status=instance.run_status,
+        settings=instance.settings
     )
 
 @app.route("/current_time", methods=["GET"])
@@ -158,6 +170,19 @@ def handle_exclude(id):
         elif action == "remove":
             instance.exclusions.discard(item)
     return {"exclusions": sorted(list(instance.exclusions))}
+
+@app.route("/<id>/settings", methods=["GET", "POST"])
+def handle_settings(id):
+    global instances
+    instance = instances.get(id)
+    if not instance: abort(404)
+    if request.method == "POST":
+        for k, v in (request.json or {}).items():
+            if k in instance.settings:
+                try: instance.settings[k] = int(v)
+                except (ValueError, TypeError): pass
+        update_known_instances()
+    return {"settings": instance.settings}
 
 @app.route("/<id>/notify", methods=["POST"])
 def handle_notify(id):

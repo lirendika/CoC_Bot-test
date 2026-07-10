@@ -34,20 +34,22 @@
             <strong class="themed_text" id="run_status" style="font-size:1.5em; padding:0;"></strong>
         </div>
 
-        <form method="POST" class="stacked-buttons">
-            <button type="submit" name="time" value="5">5 min</button>
-            <button type="submit" name="time" value="15">15 min</button>
-            <button type="submit" name="time" value="30">30 min</button>
+        <form method="POST" class="master-toggle">
+            <button type="submit" name="master" id="master_button">⏸️ Pause Bot</button>
         </form>
 
-        <form method="POST" class="custom-input-form">
-            <input type="number" name="custom_time" placeholder="Custom" min="1" required title="Minutes">
-            <button type="submit" name="custom_time"><i class="fas fa-arrow-right"></i></button>
-        </form>
-
-        <form method="POST" class="cancel-button">
-            <button type="submit" name="time" value="0">Cancel</button>
-        </form>
+        <div class="exclusions" style="margin-top:15px;">
+            <h1 class="exclusions_title">Pause Timer</h1>
+            <form method="POST" class="preset-row">
+                <button type="submit" name="time" value="15">15m</button>
+                <button type="submit" name="time" value="30">30m</button>
+                <button type="submit" name="time" value="60">1h</button>
+            </form>
+            <form method="POST" class="custom-input-form" style="margin: 0 5px 5px 5px;">
+                <input type="number" name="custom_time" placeholder="Custom (min)" min="1" required title="Minutes">
+                <button type="submit" name="custom_time"><i class="fas fa-arrow-right"></i></button>
+            </form>
+        </div>
 
         <div id="notifications" class="notifications" style="margin-top:30px;">
             <h1 class="notifications_title">Recent Notifications</h1>
@@ -56,6 +58,11 @@
         <div id="exclusions" class="exclusions" style="margin-top:30px;">
             <h1 class="exclusions_title">Task Settings</h1>
             <form method="POST" class="exclusions-form"></form>
+        </div>
+
+        <div id="farm_settings" class="exclusions" style="margin-top:30px;">
+            <h1 class="exclusions_title">Farm Settings</h1>
+            <div class="farm-settings-form"></div>
         </div>
         
         <script>
@@ -77,24 +84,37 @@
             let run_status = {{ run_status | tojson }};
             let notifications = {{ notifications | tojson }};
             let exclusions = {{ exclusions | tojson }};
+            let settings = {{ settings | tojson }};
             const time_labels = ['d', 'h', 'm', 's'];
 
-            const exclusion_options = new Map()
-            // Home Base
-            exclusion_options.set("Home Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]);
-            exclusion_options.set("Home Base", ["Home base building upgrades ENABLED", "Home base building upgrades DISABLED"]);
-            exclusion_options.set("Heroes", ["Hero upgrades ENABLED", "Hero upgrades DISABLED"]);
-            exclusion_options.set("Builder Apprentice", ["Builder apprentice assignment ENABLED", "Builder apprentice assignment DISABLED"]);
-            exclusion_options.set("Home Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]);
-            exclusion_options.set("Home Lab", ["Home lab upgrades ENABLED", "Home lab upgrades DISABLED"]);
-            exclusion_options.set("Lab Assistant", ["Lab assistant assignment ENABLED", "Lab assistant assignment DISABLED"]);
-            // Builder Base
-            exclusion_options.set("Builder Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]);
-            exclusion_options.set("Builder Base", ["Builder base building upgrades ENABLED", "Builder base building upgrades DISABLED"]);
-            exclusion_options.set("Builder Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]);
-            exclusion_options.set("Builder Lab", ["Builder lab upgrades ENABLED", "Builder lab upgrades DISABLED"]);
-            exclusion_options.set("Home Attacks", ["Home attacks ENABLED", "Home attacks DISABLED"]);
-            exclusion_options.set("Builder Attacks", ["Builder attacks ENABLED", "Builder attacks DISABLED"]);
+            // [group title, [[option name, [enabled desc, disabled desc]], ...]]
+            const exclusion_groups = [
+                ["🏠 Home Village", [
+                    ["Home Base", ["Home base building upgrades ENABLED", "Home base building upgrades DISABLED"]],
+                    ["Home Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                    ["Wall Focus", ["Wall focus ENABLED: 1 builder is kept free to keep upgrading walls whenever loot allows", "Wall focus DISABLED"]],
+                    ["Heroes", ["Hero upgrades ENABLED", "Hero upgrades DISABLED"]],
+                    ["Home Lab", ["Home lab upgrades ENABLED", "Home lab upgrades DISABLED"]],
+                    ["Home Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                    ["Lab Assistant", ["Lab assistant assignment ENABLED", "Lab assistant assignment DISABLED"]],
+                    ["Builder Apprentice", ["Builder apprentice assignment ENABLED", "Builder apprentice assignment DISABLED"]],
+                ]],
+                ["🔨 Builder Base", [
+                    ["Builder Base", ["Builder base building upgrades ENABLED", "Builder base building upgrades DISABLED"]],
+                    ["Builder Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                    ["Builder Lab", ["Builder lab upgrades ENABLED", "Builder lab upgrades DISABLED"]],
+                    ["Builder Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                ]],
+                ["⚔️ Attacks", [
+                    ["Home Attacks", ["Home attacks ENABLED", "Home attacks DISABLED"]],
+                    ["Builder Attacks", ["Builder attacks ENABLED", "Builder attacks DISABLED"]],
+                    ["Smart Attack", ["Smart attack ENABLED: picks the best side(s) by loot and deploys along the redline", "Smart attack DISABLED: troops deploy at a random edge point"]],
+                    ["AI Attack", ["AI attack ENABLED: a vision AI picks the attack side(s) by loot & weakest defenses (falls back to the loot heuristic if the API fails)", "AI attack DISABLED: uses the built-in loot heuristic to pick sides"]],
+                ]],
+            ];
+            const exclusion_options = new Map();
+            for (const [_, opts] of exclusion_groups)
+                for (const [name, desc] of opts) exclusion_options.set(name, desc);
 
             async function fetchExclusions() {
                 try {
@@ -292,8 +312,19 @@
                 const total_time_left = end_time - current_time;
                 const time_left = Math.max(0, total_time_left - (now - start) / 1000);
 
+                const master = document.getElementById('master_button');
+                if (master) {
+                    if (time_left > 0) { master.innerText = "▶️ Resume Bot"; master.classList.add("resume"); }
+                    else { master.innerText = "⏸️ Pause Bot"; master.classList.remove("resume"); }
+                }
+
                 if (run_status == "error") {
                     document.getElementById('countdown_title').innerText = `Error!`;
+                    document.getElementById('countdown_time').innerText = ``;
+                    document.getElementById('left_padding').innerText = ``;
+                    document.getElementById('right_padding').innerText = ``;
+                } else if (time_left > 86400 * 30) {
+                    document.getElementById('countdown_title').innerText = `Paused`;
                     document.getElementById('countdown_time').innerText = ``;
                     document.getElementById('left_padding').innerText = ``;
                     document.getElementById('right_padding').innerText = ``;
@@ -327,25 +358,81 @@
                 }
             }
 
+            // [key, label, tooltip]
+            const setting_fields = [
+                ["min_loot_gold", "Min Loot 🪙", "Skip enemy bases with less available gold ('Next' until found). 0 = disabled"],
+                ["min_loot_elixir", "Min Loot 💧", "Skip enemy bases with less available elixir ('Next' until found). 0 = disabled"],
+                ["wall_focus_min_storage_pct", "Wall Focus ≥ %", "Only upgrade walls when a storage bar is at least this % full"],
+            ];
+
+            async function saveSetting(key, value) {
+                try {
+                    const response = await fetch(`/${id}/settings`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ [key]: value })
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        settings = data.settings;
+                        const input = document.getElementById(`setting_${key}`);
+                        if (input) { input.value = ""; input.placeholder = settings[key]; }
+                    }
+                } catch (error) {
+                    console.error('Error saving setting:', error);
+                }
+            }
+
+            function initFarmSettings() {
+                const container = document.querySelector(".farm-settings-form");
+                for (const [key, label, tip] of setting_fields) {
+                    const row = document.createElement("form");
+                    row.className = "custom-input-form";
+                    row.style.margin = "0 5px 5px 5px";
+                    row.title = tip;
+                    row.innerHTML = `
+                        <label class="setting-label">${label}</label>
+                        <input type="text" id="setting_${key}" placeholder="${settings[key]}" title="${tip}">
+                        <button type="submit"><i class="fas fa-arrow-right"></i></button>
+                    `;
+                    row.addEventListener("submit", (e) => {
+                        e.preventDefault();
+                        const input = row.querySelector("input");
+                        const value = input.value.replace(/\D/g, "");
+                        if (value !== "") saveSetting(key, parseInt(value));
+                    });
+                    row.querySelector("input").addEventListener("input", (e) => {
+                        e.target.value = e.target.value.replace(/\D/g, "");
+                    });
+                    container.appendChild(row);
+                }
+            }
+
             function initExclusions() {
                 const exclusion_form = document.querySelector(".exclusions-form");
-                exclusion_options.forEach((option_desc, option_name) => {
-                    let button = document.createElement("button");
-                    button.className = "exclusion";
-                    button.name = "exclude";
-                    button.type = "submit";
-                    let value = option_name.toLowerCase().replaceAll(" ", "_");
-                    button.value = value;
-                    button.innerText = option_name;
-                    if (exclusions.includes(value)) {
-                        button.classList.add("active");
-                        button.title = option_desc[1];
-                    } else {
-                        button.classList.add("inactive");
-                        button.title = option_desc[0];
+                for (const [group_title, opts] of exclusion_groups) {
+                    const title = document.createElement("div");
+                    title.className = "exclusion_group_title";
+                    title.innerText = group_title;
+                    exclusion_form.appendChild(title);
+                    for (const [option_name, option_desc] of opts) {
+                        let button = document.createElement("button");
+                        button.className = "exclusion";
+                        button.name = "exclude";
+                        button.type = "submit";
+                        let value = option_name.toLowerCase().replaceAll(" ", "_");
+                        button.value = value;
+                        button.innerText = option_name;
+                        if (exclusions.includes(value)) {
+                            button.classList.add("active");
+                            button.title = option_desc[1];
+                        } else {
+                            button.classList.add("inactive");
+                            button.title = option_desc[0];
+                        }
+                        exclusion_form.appendChild(button);
                     }
-                    exclusion_form.appendChild(button);
-                });
+                }
             }
 
             function updateExclusions() {
@@ -372,6 +459,7 @@
             }
 
             initExclusions();
+            initFarmSettings();
             updateAll();
 
             document.addEventListener("keyup", (event) => {
@@ -385,7 +473,11 @@
                     const submitter = e.submitter;
                     const formData = new FormData(form);
 
-                    if (submitter.name === "time") {
+                    if (submitter.name === "master") {
+                        const time_left = end_time - current_time - (Date.now() - start) / 1000;
+                        setEndTime(time_left > 0 ? 0 : 525600); // pause ≈ indefinitely (1 year)
+                        fetchCurrentTime();
+                    } else if (submitter.name === "time") {
                         setEndTime(submitter.value);
                         fetchCurrentTime();
                     } else if (submitter.name === "custom_time") {

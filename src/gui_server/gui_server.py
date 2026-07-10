@@ -30,10 +30,18 @@ class Instance:
             "builder_lab": not UPGRADE_BUILDER_LAB,
             "home_attacks": not ATTACK_HOME_BASE,
             "builder_attacks": not ATTACK_BUILDER_BASE,
+            "smart_attack": not SMART_ATTACK,
+            "ai_attack": not AI_ATTACK,
+            "wall_focus": not WALL_FOCUS,
             "lab_assistant": not ASSIGN_LAB_ASSISTANT,
             "builder_apprentice": not ASSIGN_BUILDER_APPRENTICE,
         }
         self.exclusions = set(k for k, v in task_settings.items() if v)
+        self.settings = {
+            "min_loot_gold": globals().get("MIN_LOOT_GOLD", 0),
+            "min_loot_elixir": globals().get("MIN_LOOT_ELIXIR", 0),
+            "wall_focus_min_storage_pct": globals().get("WALL_FOCUS_MIN_STORAGE_PCT", 50),
+        }
 
 instances = {}
 
@@ -56,6 +64,7 @@ def handle_instance(id):
         current_time=time.time(),
         run_status=instance.run_status,
         exclusions=list(instance.exclusions),
+        settings=instance.settings,
     )
 
 @app.route("/instance", methods=["POST"])
@@ -104,6 +113,17 @@ def handle_status(id):
         data = request.json
         instance.run_status = data.get("status", "")
     return {"status": instance.run_status}
+
+@app.route("/<id>/settings", methods=["GET", "POST"])
+def handle_settings(id):
+    instance = instances.get(id)
+    if not instance: abort(404)
+    if request.method == "POST":
+        for k, v in (request.json or {}).items():
+            if k in instance.settings:
+                try: instance.settings[k] = int(v)
+                except (ValueError, TypeError): pass
+    return {"settings": instance.settings}
 
 @app.route("/<id>/exclude", methods=["GET", "POST"])
 def handle_exclude(id):

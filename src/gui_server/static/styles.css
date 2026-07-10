@@ -435,3 +435,76 @@ header img {
     background-color: var(--notif_background);
     color: rgb(59, 59, 59);
 }
+.master-toggle button {
+    width: 100%;
+    font-family: 'Rubik', sans-serif;
+    padding: 0.35em;
+    font-size: 2em;
+    font-weight: bold;
+    border: none;
+    border-radius: 0.5em;
+    background-color: rgb(228, 98, 86);
+    color: var(--text_inverted);
+    cursor: pointer;
+    box-shadow: 0 3px 0.25em var(--shadow);
+    transition: transform 0.2s ease-out, background-color 0.2s ease-out;
+}
+
+.master-toggle button:hover {
+    transform: scale(1.03);
+    transition-duration: 0.2s;
+}
+
+.master-toggle button:active {
+    transform: scale(0.97);
+}
+
+.master-toggle button.resume {
+    background-color: rgb(96, 189, 88);
+}
+
+.preset-row {
+    display: flex;
+    gap: 5px;
+    margin: 0 5px 5px 5px;
+}
+
+.preset-row button {
+    flex: 1;
+    font-family: 'Rubik', sans-serif;
+    padding: 0.3em;
+    font-size: 1.3em;
+    font-weight: bold;
+    border: none;
+    border-radius: 0.5em;
+    background-color: rgb(250, 217, 56);
+    color: var(--text_inverted);
+    cursor: pointer;
+    box-shadow: 0 2px 0.2em var(--shadow);
+    transition: transform 0.2s ease-out, background-color 0.1s ease-out;
+}
+
+.preset-row button:hover {
+    transform: scale(1.05);
+    background-color: rgb(120, 216, 230);
+}
+
+.exclusion_group_title {
+    width: 100%;
+    text-align: left;
+    font-weight: bold;
+    font-size: 1em;
+    color: rgb(59, 59, 59);
+    margin: 6px 5px 4px 5px;
+}
+
+.setting-label {
+    font-family: 'Rubik', sans-serif;
+    font-weight: bold;
+    font-size: 1.2em;
+    color: var(--text);
+    align-self: center;
+    min-width: 6.5em;
+    text-align: left;
+    white-space: nowrap;
+}
