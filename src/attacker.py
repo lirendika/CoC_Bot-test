@@ -246,6 +246,14 @@ class Attacker:
             x_asset = render_text("x", "SupercellMagic", 25)
             x_h, x_w = x_asset.shape[:2]
             x_sign_loc = Frame_Handler.locate(x_asset, card_section_gray, grayscale=True, thresh=0.75, ref="lc")
+            if x_sign_loc[0] is None or x_sign_loc[1] is None:
+                # Event/super troop cards can defeat the equalized-gray match
+                # (a x59 event troop was read as a hero); retry on the binarized
+                # raw card, where the white count text isolates cleanly — the
+                # same representation the digit reader below uses
+                card_bin = ((frame_gray_raw[:, peaks[i]:peaks[i+1]] >= 220) * 255).astype(np.uint8)
+                x_bin = ((Frame_Handler.grayscale(x_asset) >= 128) * 255).astype(np.uint8)
+                x_sign_loc = Frame_Handler.locate(x_bin, card_bin, grayscale=True, thresh=0.75, ref="lc")
             if x_sign_loc[0] is not None and x_sign_loc[1] is not None: # Only troops, clan troops, or spells have multiplicity
                 # Read the multi-digit count from the raw (un-equalized) grayscale,
                 # binarized so the white digits match cleanly on any background.
@@ -1213,9 +1221,261 @@ class Attacker:
             stop_coc()
             if restart: start_coc()
 
+    # ============================================================
+    # 💥 Spam Event Attack (single troop drag-spam + spread rage)
+    # ============================================================
+
+    # 4 drag lines for the "spam event" mode, traced from the user's drawing
+    # (confirmed 2026-07-13): 2 on the LEFT (outer line hugging the map edge +
+    # inner line near the base wall) and 2 on the RIGHT. Each is ONE long touch
+    # dragged back and forth along its line ("dielok-elokkan atas-bawah") so
+    # troops spread out. Normalized (x, y) polyline vertices (V-shaped: end →
+    # side corner → end).
+    SPAM_EVENT_LINES = [
+        [(0.395, 0.02), (0.043, 0.464), (0.298, 0.814)],  # LEFT  outer
+        [(0.586, 0.02), (0.933, 0.467), (0.681, 0.806)],  # RIGHT outer
+        [(0.439, 0.02), (0.087, 0.464), (0.343, 0.814)],  # LEFT  inner
+        [(0.537, 0.02), (0.884, 0.467), (0.632, 0.806)],  # RIGHT inner
+    ]
+
+    def _rage_points(self, n, spacing=0.13):
+        """n deploy points spread across the base interior with a minimum
+        pairwise spacing so rage-spell areas don't overlap. Ordered centre-out
+        so the first rages land where the spammed troops converge."""
+        import numpy as np
+        if n <= 0: return []
+        x0, x1, y0, y1 = 0.30, 0.70, 0.30, 0.62
+        cx, cy = 0.50, 0.46
+        xs = np.arange(x0, x1 + 1e-9, spacing)
+        ys = np.arange(y0, y1 + 1e-9, spacing)
+        grid = [(float(x), float(y)) for y in ys for x in xs]
+        grid.sort(key=lambda p: (p[0] - cx) ** 2 + (p[1] - cy) ** 2)
+        out = []
+        for i in range(n):
+            x, y = grid[i % len(grid)] if grid else (cx, cy)
+            x = float(np.clip(x + np.random.uniform(-0.01, 0.01), self.DEPLOY_SAFE_X[0], self.DEPLOY_SAFE_X[1]))
+            y = float(np.clip(y + np.random.uniform(-0.01, 0.01), self.DEPLOY_SAFE_Y[0], self.DEPLOY_SAFE_Y[1]))
+            out.append((x, y))
+        return out
+
+    def complete_spam_event_attack(self, restart=True):
+        """Event 'spam' attack. Auto-detects the army bar and deploys, in order:
+          - TROOPS: two fingers held at once (one per side), swept along the 4
+            traced lines with a randomized walk until the card empties.
+          - HEROES: dropped at a random front point, then their ability is fired
+            (tap the card again once they've landed).
+          - CLAN troops: dropped at a random front point.
+          - RAGE spells: spread across the base in random order (non-overlapping).
+        Everything is heavily randomized (side order, walk path, speeds, timings,
+        rage placement) to look human, not bot-like.
+        """
+        import time, numpy as np
+
+        # Skip poor bases before spending any troops — the same loot filter as
+        # the normal attack (MIN_LOOT_GOLD / MIN_LOOT_ELIXIR apply here too)
+        self._find_worthy_target()
+
+        Input_Handler.zoom(dir="out")
+
+        L_outer, R_outer, L_inner, R_inner = Attacker.SPAM_EVENT_LINES
+        pts_per_line = max(2, getattr(configs, "SPAM_EVENT_POINTS_PER_LINE", 10))
+        hold_ms = getattr(configs, "SPAM_EVENT_HOLD_MS", 400)
+        side_pause_ms = getattr(configs, "SPAM_EVENT_SIDE_PAUSE_MS", 350)
+        move_interval = getattr(configs, "SPAM_EVENT_MOVE_INTERVAL_MS", 60)
+        max_passes = getattr(configs, "SPAM_EVENT_MAX_PASSES", 30)
+        rage_spacing = getattr(configs, "SPAM_EVENT_RAGE_SPACING", 0.13)
+
+        # one continuous path per side: outer line then inner line
+        left_path = np.array(list(L_outer) + list(L_inner)[::-1], dtype=float)
+        right_path = np.array(list(R_outer) + list(R_inner)[::-1], dtype=float)
+
+        def _arclen(path):
+            seg = np.linalg.norm(np.diff(path, axis=0), axis=1)
+            return np.concatenate([[0.0], np.cumsum(seg)])
+
+        def _rand_walk(path, steps):
+            """A randomized walk up and down a side path: random start, random
+            step sizes, bounces at the ends, per-point jitter — so the sweep
+            never traces the same line twice (looks human, not bot-like)."""
+            cum = _arclen(path); total = cum[-1]
+            t = np.random.uniform(0, total)
+            d = 1 if np.random.rand() < 0.5 else -1
+            out = []
+            for _ in range(steps):
+                t += d * np.random.uniform(0.05, 0.18) * total
+                if t <= 0: t, d = 0.0, 1
+                elif t >= total: t, d = total, -1
+                if np.random.rand() < 0.12: d = -d  # occasional direction flip
+                x = float(np.interp(t, cum, path[:, 0]) + np.random.uniform(-0.015, 0.015))
+                y = float(np.interp(t, cum, path[:, 1]) + np.random.uniform(-0.02, 0.02))
+                out.append((x, y))
+            return out
+
+        def _card_empty(card_center):
+            """Double-read the deployed check: one gray frame during a screen
+            transition/animation must NOT end the spam early (that showed up
+            live as 'troops never spammed')."""
+            if not self._card_deployed(card_center): return False
+            time.sleep(0.15)
+            return self._card_deployed(card_center)
+
+        def _spam_troop(card_center):
+            """Deploy one troop card with TWO fingers held at once — one on each
+            side — never released between laps. The two presses are STAGGERED
+            (random which side lands first, with a pause) so it isn't read as a
+            pinch/pan, then both fingers sweep their side with a randomized walk
+            until the card reads empty."""
+            Input_Handler.click(card_center, 0.93)  # select the troop
+            time.sleep(0.2)
+
+            # pointer 0 = LEFT finger, pointer 1 = RIGHT finger
+            left_first = np.random.rand() < 0.5   # random: sometimes left lands first
+            (fp, fpath), (sp, spath) = (
+                ((0, left_path), (1, right_path)) if left_first
+                else ((1, right_path), (0, left_path))
+            )
+            # press the first finger, hold still (deploy-lock), then the second
+            Input_Handler.down(float(fpath[0][0]), float(fpath[0][1]), pointer=fp)
+            time.sleep(hold_ms * np.random.uniform(0.8, 1.2) / 1000)
+            Input_Handler.down(float(spath[0][0]), float(spath[0][1]), pointer=sp)
+            time.sleep(side_pause_ms * np.random.uniform(0.8, 1.2) / 1000)
+
+            try:
+                for lap in range(max_passes):
+                    lw = _rand_walk(left_path, pts_per_line)
+                    rw = _rand_walk(right_path, pts_per_line)
+                    speed = np.random.uniform(0.5, 1.9)  # each lap sweeps at its own pace
+                    for (lx, ly), (rx, ry) in zip(lw, rw):
+                        Input_Handler.move(lx, ly, pointer=0)
+                        Input_Handler.move(rx, ry, pointer=1)
+                        time.sleep(move_interval / 1000 * speed * np.random.uniform(0.6, 1.5))
+                        if np.random.rand() < 0.06:  # occasional human hesitation
+                            time.sleep(np.random.uniform(0.15, 0.5))
+                    if _card_empty(card_center):
+                        break
+            finally:
+                Input_Handler.up(pointer=0)  # release both fingers at the very end
+                Input_Handler.up(pointer=1)
+
+        def _spread_rage(card_center, count, points, start):
+            """Drop `count` rage spells at successive non-overlapping points,
+            with human-ish random pacing between taps."""
+            Input_Handler.click(card_center, 0.93)  # select the spell
+            time.sleep(np.random.uniform(0.15, 0.4))
+            for k in range(count):
+                if start + k >= len(points): break
+                x, y = points[start + k]
+                Input_Handler.click(x, y)
+                time.sleep(np.random.uniform(0.12, 0.45))
+            return start + count
+
+        def _deploy_hero(card_center):
+            """Drop a hero/clan-castle card at a random spot on a random side's
+            drag line (jittered so no two battles look alike)."""
+            path = left_path if np.random.rand() < 0.5 else right_path
+            cum = _arclen(path)
+            t = np.random.uniform(0.2, 0.8) * cum[-1]
+            x = float(np.interp(t, cum, path[:, 0]) + np.random.uniform(-0.012, 0.012))
+            y = float(np.interp(t, cum, path[:, 1]) + np.random.uniform(-0.012, 0.012))
+            Input_Handler.click(card_center, 0.93)
+            time.sleep(np.random.uniform(0.15, 0.4))
+            Input_Handler.click(x, y)
+            time.sleep(np.random.uniform(0.2, 0.6))
+
+        def _detect_cards(retries=5):
+            """Detect the army bar, retrying until a troop card shows up AND
+            reads as still available. Right at battle start the bar can render
+            partially (hiding the leftmost troop cards) or a transition frame
+            can make every card read gray/deployed — both made battles skip the
+            troop spam."""
+            best = None
+            for _ in range(retries):
+                try:
+                    frame = Frame_Handler.get_frame_section(0.0, 0.82, 1.0, 1.0, grayscale=False)
+                    cc, ct, cn, _ = self.detect_troop_positions(frame, return_types=True, return_counts=True)
+                    if len(cc) > 0:
+                        best = (cc, ct, cn)
+                        troops_live = any(t == "troop" and not self._card_deployed(cc[i])
+                                          for i, t in enumerate(ct))
+                        if troops_live:
+                            break
+                except (KeyboardInterrupt, SystemExit): raise
+                except Exception as e:
+                    if configs.DEBUG: print("spam_event detect", e)
+                time.sleep(np.random.uniform(0.6, 1.1))
+            if best is not None:
+                print(f"🃏 Spam Event: cards = {[(t, int(n)) for t, n in zip(best[1], best[2])]}")
+            return best
+
+        # let the battle screen settle before reading the bar
+        time.sleep(np.random.uniform(0.8, 1.5))
+        detected = _detect_cards()
+        if detected is None:
+            print("⚠️ Spam Event: no army cards detected")
+        else:
+            cc, ct, cn = detected
+
+            # 1) troops: two-finger random-walk spam
+            troop_idxs = [i for i in range(len(cc))
+                          if ct[i] == "troop" and not self._card_deployed(cc[i])]
+            if not troop_idxs:
+                # the deployed-check can misread on a transition frame; at
+                # battle start no troop can truly be spent yet, and spamming a
+                # genuinely empty card is a harmless no-op — so spam them all
+                troop_idxs = [i for i in range(len(cc)) if ct[i] == "troop"]
+            if not troop_idxs and len(cc) > 0 and ct[0] != "spell":
+                # event troop cards can still be misread as heroes (x-sign miss,
+                # e.g. a x59 event troop read as a 5th 'hero'); the army bar
+                # always orders troops first, so spam the leftmost card
+                print("⚠️ Spam Event: no troop card recognized — spamming the leftmost card")
+                troop_idxs = [0]
+            for i in troop_idxs:
+                print("💥 Spam Event: dragging troop across the ring...")
+                _spam_troop(cc[i])
+
+            # 2) heroes & clan castle at random ring spots
+            hero_idxs = [i for i in range(len(cc))
+                         if ct[i] in ("hero", "clan") and i not in troop_idxs
+                         and not self._card_deployed(cc[i])]
+            np.random.shuffle(hero_idxs)
+            hero_cards = []
+            for i in hero_idxs:
+                print("🦸 Spam Event: deploying hero/clan card...")
+                _deploy_hero(cc[i])
+                if ct[i] == "hero":
+                    hero_cards.append(cc[i])
+
+            if troop_idxs or hero_idxs:
+                time.sleep(np.random.uniform(1.5, 3.0))  # let them walk in
+
+            # 3) rage spells: spread ONCE per battle, in random drop order
+            spell_idxs = [i for i in range(len(cc))
+                          if ct[i] == "spell" and not self._card_deployed(cc[i])]
+            if spell_idxs:
+                total_rage = int(sum(max(1, cn[i]) for i in spell_idxs))
+                pts = self._rage_points(total_rage, spacing=rage_spacing)
+                pts = [pts[j] for j in np.random.permutation(len(pts))]
+                print(f"🔥 Spam Event: spreading {total_rage} rage spell(s)...")
+                cursor = 0
+                for i in spell_idxs:
+                    cursor = _spread_rage(cc[i], max(1, cn[i]), pts, cursor)
+
+            # 4) fire hero abilities once they're in the fight
+            for card in hero_cards:
+                time.sleep(np.random.uniform(0.8, 2.5))
+                print("⚡ Spam Event: firing hero ability...")
+                Input_Handler.click(card, 0.93)
+
+            Input_Handler.click(0.5, 0.15)  # deselect
+
+        # Wait for the battle to end naturally; restart CoC if it never shows up.
+        if not self.wait_battle_end():
+            stop_coc()
+            if restart: start_coc()
+
     def complete_builder_attack(self, restart=True):
         import numpy as np
-        
+
         Input_Handler.zoom(dir="out")
 
         card_centers = np.linspace(0.1, 0.9, 11)
@@ -1346,8 +1606,11 @@ class Attacker:
 
             # Complete an attack
             if self.start_normal_attack(timeout):
-                self.complete_normal_attack(restart=restart, exclude_clan_troops=EXCLUDE_CLAN_TROOPS)
-        
+                if not Task_Handler.spam_event_excluded(use_cached=True):
+                    self.complete_spam_event_attack(restart=restart)
+                else:
+                    self.complete_normal_attack(restart=restart, exclude_clan_troops=EXCLUDE_CLAN_TROOPS)
+
         except Exception as e:
             if configs.DEBUG: print("attack_home_base", e)
 

@@ -1072,6 +1072,17 @@ class Task_Handler:
             return not configs.SMART_ATTACK
 
     @classmethod
+    def spam_event_excluded(cls, **kwargs):
+        try:
+            exclusions = cls.get_exclusions(**kwargs)
+            if exclusions is not None:
+                return "spam_event" in exclusions
+            raise Exception("No external exclusion source available")
+        except (KeyboardInterrupt, SystemExit): raise
+        except:
+            return not getattr(configs, "SPAM_EVENT", False)
+
+    @classmethod
     def ai_attack_excluded(cls, **kwargs):
         try:
             exclusions = cls.get_exclusions(**kwargs)
@@ -1337,6 +1348,25 @@ class Input_Handler:
         from pyminitouch import CommandBuilder
         builder = CommandBuilder()
         builder.up(pointer)
+        builder.publish(ADB_Manager.minitouch_device.connection)
+
+    @classmethod
+    def move(cls, x, y, pointer=0, pressure=None):
+        """Publish a single move event for an ALREADY-HELD pointer (call down()
+        before and up() after). Lets multiple held fingers be swept
+        independently — used by the two-finger spam-event hold-drag."""
+        import numpy as np
+        from pyminitouch import CommandBuilder
+        if x < 0: x = 1 + x
+        if y < 0: y = 1 + y
+        MAX_X = int(ADB_Manager.minitouch_device.connection.max_x)
+        MAX_Y = int(ADB_Manager.minitouch_device.connection.max_y)
+        if pressure is None:
+            pressure = int(np.random.randint(60, 115)) if cls.HUMANIZE else 100
+        px = int(np.clip(x * MAX_X, 0, MAX_X))
+        py = int(np.clip(y * MAX_Y, 0, MAX_Y))
+        builder = CommandBuilder()
+        builder.move(pointer, px, py, pressure=pressure)
         builder.publish(ADB_Manager.minitouch_device.connection)
 
     # Humanization: every synthetic tap gets a small positional jitter, a

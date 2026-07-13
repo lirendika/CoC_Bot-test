@@ -66,9 +66,14 @@ class Upgrader:
         sec = frame[int(h*(y-0.128)):int(h*(y-0.088)), int(w*(x-0.05)):int(w*(x+0.05))]
         if sec.size == 0: return "none"
         r, g, b = sec[..., 0].astype(int), sec[..., 1].astype(int), sec[..., 2].astype(int)
-        salmon = int(((np.abs(r-255) < 40) & (np.abs(g-136) < 40) & (np.abs(b-127) < 40)).sum())
+        # Any red shade counts, not just one salmon tone — the exact tint of the
+        # "can't afford" price varies, and missing it here made the batch loop
+        # keep clicking Add Wall with both prices red. The gold icon (r-g small)
+        # and the elixir icon (r-b small) can't sneak into the red count.
+        red = int(((r > 180) & (r - g > 60) & (r - b > 60)).sum())
         white = int(((r > 225) & (g > 225) & (b > 225)).sum())
-        if salmon >= 80 and salmon > white: return "red"
+        # Red digits keep a white outline, so red presence outranks white
+        if red >= 60 and red * 2 > white: return "red"
         if white >= 80: return "white"
         return "none"
 

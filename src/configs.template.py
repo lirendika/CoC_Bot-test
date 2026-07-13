@@ -141,6 +141,15 @@ SMART_ATTACK_INSIDE_PCT = 60 # % of resources inside the base to force a single-
 SMART_ATTACK_OUTSIDE_PCT = 50 # % of resources near the border to attack every side holding loot (MyBot.run "Outside Percentage")
 TANK_SLOTS = [] # army slot indices (0-based, matching barracks order) to deploy first as tanks; empty = auto (troops with the smallest counts lead)
 
+# Spam Event Attack (single-troop two-finger hold-drag spam for challenge/farm events)
+SPAM_EVENT = False               # when ON, home attacks bring ONE troop type and spam it with TWO fingers held at once (one per side, never released mid-card): the two presses are staggered (random side first + a pause so it isn't read as pinch/pan), then both fingers sweep their side with a randomized walk; then spread rage spells; when OFF, normal/smart attack runs (can be overridden on desktop or web app)
+SPAM_EVENT_HOLD_MS = 400         # hold-still after the FIRST finger lands, before the second (ms, ±20%) — long enough that the game locks into deploy mode, not a pinch/pan
+SPAM_EVENT_SIDE_PAUSE_MS = 350   # extra stagger pause after the SECOND finger lands, before sweeping (ms, ±20%)
+SPAM_EVENT_MOVE_INTERVAL_MS = 60 # base ms between finger move steps during the sweep (randomized ±, lower = faster)
+SPAM_EVENT_POINTS_PER_LINE = 10  # random-walk steps per lap per side (higher = longer sweep before re-checking the card)
+SPAM_EVENT_MAX_PASSES = 30       # safety cap on laps per troop card (stops even if the card never reads as empty)
+SPAM_EVENT_RAGE_SPACING = 0.13   # minimum normalized gap between rage-spell drops so their areas don't overlap
+
 ########################
 # == System Configs == #
 ########################

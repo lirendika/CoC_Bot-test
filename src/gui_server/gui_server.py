@@ -32,6 +32,7 @@ class Instance:
             "builder_attacks": not ATTACK_BUILDER_BASE,
             "smart_attack": not SMART_ATTACK,
             "ai_attack": not AI_ATTACK,
+            "spam_event": not globals().get("SPAM_EVENT", False),
             "wall_focus": not WALL_FOCUS,
             "lab_assistant": not ASSIGN_LAB_ASSISTANT,
             "builder_apprentice": not ASSIGN_BUILDER_APPRENTICE,
