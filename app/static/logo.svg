@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="CoC Bot">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#33415f"/>
+      <stop offset="1" stop-color="#141a29"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe27a"/>
+      <stop offset="0.45" stop-color="#fbc63f"/>
+      <stop offset="1" stop-color="#e79a1f"/>
+    </linearGradient>
+    <linearGradient id="visorGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2438"/>
+      <stop offset="1" stop-color="#0a0e18"/>
+    </linearGradient>
+    <linearGradient id="eyeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8df3ff"/>
+      <stop offset="1" stop-color="#25b9e8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- badge -->
+  <rect width="128" height="128" rx="30" fill="url(#bgGrad)"/>
+  <rect x="3" y="3" width="122" height="122" rx="27.5" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+
+  <!-- crown -->
+  <path d="M30 47 V25.5 L46.5 37 L64 18 L81.5 37 L98 25.5 V47 Z" fill="url(#goldGrad)"/>
+  <circle cx="30" cy="24" r="4.6" fill="#ffe89a"/>
+  <circle cx="64" cy="16.5" r="5.4" fill="#ffe89a"/>
+  <circle cx="98" cy="24" r="4.6" fill="#ffe89a"/>
+
+  <!-- head -->
+  <rect x="26" y="46" width="76" height="56" rx="17" fill="url(#goldGrad)"/>
+  <rect x="15" y="62" width="11" height="22" rx="5.5" fill="#e79a1f"/>
+  <rect x="102" y="62" width="11" height="22" rx="5.5" fill="#e79a1f"/>
+
+  <!-- visor -->
+  <rect x="35" y="58" width="58" height="32" rx="14" fill="url(#visorGrad)"/>
+  <rect x="47" y="67" width="12" height="14" rx="6" fill="url(#eyeGrad)"/>
+  <rect x="69" y="67" width="12" height="14" rx="6" fill="url(#eyeGrad)"/>
+
+  <!-- chin plate -->
+  <rect x="52" y="102" width="24" height="7" rx="3.5" fill="#e79a1f"/>
+</svg>

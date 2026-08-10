@@ -17,6 +17,7 @@ CORS(app)
 DEFAULT_SETTINGS = {
     "min_loot_gold": 0,
     "min_loot_elixir": 0,
+    "min_loot_dark": 0,
     "wall_focus_min_storage_pct": 50,
 }
 

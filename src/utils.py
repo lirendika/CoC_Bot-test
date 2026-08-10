@@ -1083,6 +1083,19 @@ class Task_Handler:
             return not getattr(configs, "SPAM_EVENT", False)
 
     @classmethod
+    def stop_attack_when_full_excluded(cls, **kwargs):
+        # ON (not excluded) = stop attacking once both storages are full;
+        # OFF (excluded) = keep attacking regardless of storage
+        try:
+            exclusions = cls.get_exclusions(**kwargs)
+            if exclusions is not None:
+                return "stop_attack_when_full" in exclusions
+            raise Exception("No external exclusion source available")
+        except (KeyboardInterrupt, SystemExit): raise
+        except:
+            return not getattr(configs, "STOP_ATTACK_WHEN_FULL", True)
+
+    @classmethod
     def ai_attack_excluded(cls, **kwargs):
         try:
             exclusions = cls.get_exclusions(**kwargs)
@@ -1125,6 +1138,7 @@ class OCR_Handler:
             cls.reader = easyocr.Reader(['en'], gpu=True)
         result = cls.reader.readtext(frame, detail=0)
         return [text for text in result if text.strip()]
+
 
     @classmethod
     def external_ocr(cls, frame):

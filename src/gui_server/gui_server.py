@@ -33,6 +33,7 @@ class Instance:
             "smart_attack": not SMART_ATTACK,
             "ai_attack": not AI_ATTACK,
             "spam_event": not globals().get("SPAM_EVENT", False),
+            "stop_attack_when_full": not globals().get("STOP_ATTACK_WHEN_FULL", True),
             "wall_focus": not WALL_FOCUS,
             "lab_assistant": not ASSIGN_LAB_ASSISTANT,
             "builder_apprentice": not ASSIGN_BUILDER_APPRENTICE,
@@ -41,6 +42,7 @@ class Instance:
         self.settings = {
             "min_loot_gold": globals().get("MIN_LOOT_GOLD", 0),
             "min_loot_elixir": globals().get("MIN_LOOT_ELIXIR", 0),
+            "min_loot_dark": globals().get("MIN_LOOT_DARK", 0),
             "wall_focus_min_storage_pct": globals().get("WALL_FOCUS_MIN_STORAGE_PCT", 50),
         }
 

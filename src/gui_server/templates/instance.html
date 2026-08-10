@@ -2,14 +2,16 @@
 <html>
 <head>
     <title>CoC Bot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
     <div id="home">
         <header>
-            <img src="{{ url_for('static', filename='coc_bot_logo.png') }}" alt="CoC Bot">
+            <img src="{{ url_for('static', filename='logo.svg') }}" alt="CoC Bot">
             <h1 class="themed_text">CoC Bot</h1>
         </header>
 
@@ -29,13 +31,13 @@
                 </a>
             </div>
             
-            <img src="{{ url_for('static', filename='coc_bot_logo.png') }}" alt="CoC Bot">
+            <img src="{{ url_for('static', filename='logo.svg') }}" alt="CoC Bot">
             <h1 class="themed_text">CoC Bot</h1>
         </header>
 
         <div class="container">
 
-            <div style="margin-bottom:15px;">
+            <div class="status-block" style="margin-bottom:15px;">
                 <p>
                     <span class="themed_padding" id="left_padding"></span><!--
                 --><strong class="themed_text" id="countdown_title"></strong><!--
@@ -66,15 +68,29 @@
                 <h1 class="notifications_title">Recent Notifications</h1>
             </div> -->
 
-            <div id="exclusions" class="exclusions" style="margin-top:30px;">
-                <h1 class="exclusions_title">Task Settings</h1>
-                <form method="POST" class="exclusions-form"></form>
-            </div>
+            <nav class="tabs" style="margin-top:26px;">
+                <button type="button" class="tab active" data-page="home">🏠 Home Village</button>
+                <button type="button" class="tab" data-page="builder">🔨 Builder Base</button>
+            </nav>
 
-            <div id="farm_settings" class="exclusions" style="margin-top:30px;">
-                <h1 class="exclusions_title">Farm Settings</h1>
-                <div class="farm-settings-form"></div>
-            </div>
+            <section class="page" data-page="home">
+                <div id="exclusions" class="exclusions" style="margin-top:12px;">
+                    <h1 class="exclusions_title">Home Village Tasks</h1>
+                    <form method="POST" class="exclusions-form" data-page="home"></form>
+                </div>
+
+                <div id="farm_settings" class="exclusions" style="margin-top:20px;">
+                    <h1 class="exclusions_title">Farm Settings</h1>
+                    <div class="farm-settings-form"></div>
+                </div>
+            </section>
+
+            <section class="page" data-page="builder" hidden>
+                <div class="exclusions" style="margin-top:12px;">
+                    <h1 class="exclusions_title">Builder Base Tasks</h1>
+                    <form method="POST" class="exclusions-form" data-page="builder"></form>
+                </div>
+            </section>
 
             <form method="POST" class="cancel-button" style="margin-top:30px;">
                 <button type="submit" name="shutdown">Shutdown</button>
@@ -93,35 +109,43 @@
         const web_app_url = "{{ web_app_url }}";
         const time_labels = ['d', 'h', 'm', 's'];
 
-        // [group title, [[option name, [enabled desc, disabled desc]], ...]]
-        const exclusion_groups = [
-            ["🏠 Home Village", [
-                ["Home Base", ["Home base building upgrades ENABLED", "Home base building upgrades DISABLED"]],
-                ["Home Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
-                ["Wall Focus", ["Wall focus ENABLED: 1 builder is kept free to keep upgrading walls whenever loot allows", "Wall focus DISABLED"]],
-                ["Heroes", ["Hero upgrades ENABLED", "Hero upgrades DISABLED"]],
-                ["Home Lab", ["Home lab upgrades ENABLED", "Home lab upgrades DISABLED"]],
-                ["Home Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
-                ["Lab Assistant", ["Lab assistant assignment ENABLED", "Lab assistant assignment DISABLED"]],
-                ["Builder Apprentice", ["Builder apprentice assignment ENABLED", "Builder apprentice assignment DISABLED"]],
-            ]],
-            ["🔨 Builder Base", [
-                ["Builder Base", ["Builder base building upgrades ENABLED", "Builder base building upgrades DISABLED"]],
-                ["Builder Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
-                ["Builder Lab", ["Builder lab upgrades ENABLED", "Builder lab upgrades DISABLED"]],
-                ["Builder Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
-            ]],
-            ["⚔️ Attacks", [
-                ["Home Attacks", ["Home attacks ENABLED", "Home attacks DISABLED"]],
-                ["Builder Attacks", ["Builder attacks ENABLED", "Builder attacks DISABLED"]],
-                ["Smart Attack", ["Smart attack ENABLED: picks the best side(s) by loot and deploys along the redline", "Smart attack DISABLED: troops deploy at a random edge point"]],
-                ["AI Attack", ["AI attack ENABLED: a vision AI picks the attack side(s) by loot & weakest defenses (falls back to the loot heuristic if the API fails)", "AI attack DISABLED: uses the built-in loot heuristic to pick sides"]],
-                ["Spam Event", ["Spam-event attack ENABLED: brings ONE troop type, spams it with two held fingers swept randomly along the side lines, deploys heroes + fires abilities, and spreads rage spells randomly — overrides normal/smart attack", "Spam-event attack DISABLED: normal/smart attack runs"]],
-            ]],
-        ];
+        // page -> [group title, [[option name, [enabled desc, disabled desc]], ...]]
+        const exclusion_pages = {
+            home: [
+                ["⚙️ Upgrades", [
+                    ["Home Base", ["Home base building upgrades ENABLED", "Home base building upgrades DISABLED"]],
+                    ["Home Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                    ["Wall Focus", ["Wall focus ENABLED: 1 builder is kept free to keep upgrading walls whenever loot allows", "Wall focus DISABLED"]],
+                    ["Heroes", ["Hero upgrades ENABLED", "Hero upgrades DISABLED"]],
+                    ["Home Lab", ["Home lab upgrades ENABLED", "Home lab upgrades DISABLED"]],
+                    ["Home Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                    ["Lab Assistant", ["Lab assistant assignment ENABLED", "Lab assistant assignment DISABLED"]],
+                    ["Builder Apprentice", ["Builder apprentice assignment ENABLED", "Builder apprentice assignment DISABLED"]],
+                ]],
+                ["⚔️ Attacks", [
+                    ["Home Attacks", ["Home attacks ENABLED", "Home attacks DISABLED"]],
+                    ["Smart Attack", ["Smart attack ENABLED: picks the best side(s) by loot and deploys along the redline", "Smart attack DISABLED: troops deploy at a random edge point"]],
+                    ["AI Attack", ["AI attack ENABLED: a vision AI picks the attack side(s) by loot & weakest defenses (falls back to the loot heuristic if the API fails)", "AI attack DISABLED: uses the built-in loot heuristic to pick sides"]],
+                    ["Spam Event", ["Spam-event attack ENABLED: brings ONE troop type, spams it with two held fingers swept randomly along the side lines, deploys heroes + fires abilities, and spreads rage spells randomly — overrides normal/smart attack", "Spam-event attack DISABLED: normal/smart attack runs"]],
+                    ["Stop Attack When Full", ["ENABLED: stop home attacks once both storages are full (default farming behavior)", "DISABLED: keep attacking regardless of storage — never stops for full storage"]],
+                ]],
+            ],
+            builder: [
+                ["⚙️ Upgrades", [
+                    ["Builder Base", ["Builder base building upgrades ENABLED", "Builder base building upgrades DISABLED"]],
+                    ["Builder Base Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                    ["Builder Lab", ["Builder lab upgrades ENABLED", "Builder lab upgrades DISABLED"]],
+                    ["Builder Lab Priority", ["Will upgrade according to priority", "Will upgrade randomly"]],
+                ]],
+                ["⚔️ Attacks", [
+                    ["Builder Attacks", ["Builder attacks ENABLED", "Builder attacks DISABLED"]],
+                ]],
+            ],
+        };
         const exclusion_options = new Map();
-        for (const [_, opts] of exclusion_groups)
-            for (const [name, desc] of opts) exclusion_options.set(name, desc);
+        for (const groups of Object.values(exclusion_pages))
+            for (const [_, opts] of groups)
+                for (const [name, desc] of opts) exclusion_options.set(name, desc);
 
         async function fetchExclusions() {
             try {
@@ -396,6 +420,7 @@
         const setting_fields = [
             ["min_loot_gold", "Min Loot 🪙", "Skip enemy bases with less available gold ('Next' until found). 0 = disabled"],
             ["min_loot_elixir", "Min Loot 💧", "Skip enemy bases with less available elixir ('Next' until found). 0 = disabled"],
+            ["min_loot_dark", "Min Loot 🖤", "Skip enemy bases with less available dark elixir ('Next' until found). 0 = disabled"],
             ["wall_focus_min_storage_pct", "Wall Focus ≥ %", "Only upgrade walls when a storage bar is at least this % full"],
         ];
 
@@ -425,9 +450,11 @@
                 row.className = "custom-input-form";
                 row.style.margin = "0 5px 5px 5px";
                 row.title = tip;
+                // an older server may not report every setting yet — show 0
+                const current = settings[key] ?? 0;
                 row.innerHTML = `
                     <label class="setting-label">${label}</label>
-                    <input type="text" id="setting_${key}" placeholder="${settings[key]}" title="${tip}">
+                    <input type="text" id="setting_${key}" placeholder="${current}" title="${tip}">
                     <button type="submit"><i class="fas fa-arrow-right"></i></button>
                 `;
                 row.addEventListener("submit", (e) => {
@@ -444,30 +471,52 @@
         }
 
         function initExclusions() {
-            const exclusion_form = document.querySelector(".exclusions-form");
-            for (const [group_title, opts] of exclusion_groups) {
-                const title = document.createElement("div");
-                title.className = "exclusion_group_title";
-                title.innerText = group_title;
-                exclusion_form.appendChild(title);
-                for (const [option_name, option_desc] of opts) {
-                    let button = document.createElement("button");
-                    button.className = "exclusion";
-                    button.name = "exclude";
-                    button.type = "submit";
-                    let value = option_name.toLowerCase().replaceAll(" ", "_");
-                    button.value = value;
-                    button.innerText = option_name;
-                    if (exclusions.includes(value)) {
-                        button.classList.add("active");
-                        button.title = option_desc[1];
-                    } else {
-                        button.classList.add("inactive");
-                        button.title = option_desc[0];
+            for (const [page, groups] of Object.entries(exclusion_pages)) {
+                const exclusion_form = document.querySelector(`.exclusions-form[data-page="${page}"]`);
+                if (!exclusion_form) continue;
+                for (const [group_title, opts] of groups) {
+                    const title = document.createElement("div");
+                    title.className = "exclusion_group_title";
+                    title.innerText = group_title;
+                    exclusion_form.appendChild(title);
+                    for (const [option_name, option_desc] of opts) {
+                        let button = document.createElement("button");
+                        button.className = "exclusion";
+                        button.name = "exclude";
+                        button.type = "submit";
+                        let value = option_name.toLowerCase().replaceAll(" ", "_");
+                        button.value = value;
+                        button.innerText = option_name;
+                        if (exclusions.includes(value)) {
+                            button.classList.add("active");
+                            button.title = option_desc[1];
+                        } else {
+                            button.classList.add("inactive");
+                            button.title = option_desc[0];
+                        }
+                        exclusion_form.appendChild(button);
                     }
-                    exclusion_form.appendChild(button);
                 }
             }
+        }
+
+        function showPage(page) {
+            document.querySelectorAll(".page").forEach(sec => {
+                sec.hidden = sec.dataset.page !== page;
+            });
+            document.querySelectorAll(".tab").forEach(tab => {
+                tab.classList.toggle("active", tab.dataset.page === page);
+            });
+            try { localStorage.setItem("coc_bot_page", page); } catch (e) {}
+        }
+
+        function initTabs() {
+            document.querySelectorAll(".tab").forEach(tab => {
+                tab.addEventListener("click", () => showPage(tab.dataset.page));
+            });
+            let saved = "home";
+            try { saved = localStorage.getItem("coc_bot_page") || "home"; } catch (e) {}
+            showPage(document.querySelector(`.page[data-page="${saved}"]`) ? saved : "home");
         }
 
         function updateExclusions() {
@@ -495,6 +544,7 @@
 
         initExclusions();
         initFarmSettings();
+        initTabs();
         updateAll();
 
         window.addEventListener(

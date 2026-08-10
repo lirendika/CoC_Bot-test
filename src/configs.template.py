@@ -33,6 +33,7 @@ WALL_FOCUS = False # keep 1 builder idle and dump spare loot into walls whenever
 WALL_FOCUS_MIN_STORAGE_PCT = 50 # only start wall upgrades when a storage bar is at least this % full (alternates farming and walls)
 MIN_LOOT_GOLD = 0 # skip enemy bases with less available gold than this ("Next" until found); 0 = disabled
 MIN_LOOT_ELIXIR = 0 # skip enemy bases with less available elixir than this ("Next" until found); 0 = disabled
+MIN_LOOT_DARK = 0 # skip enemy bases with less available dark elixir than this ("Next" until found); 0 = disabled
 UPGRADE_HOME_BASE = True # can be overridden on desktop or web app
 UPGRADE_HOME_LAB = True # can be overridden on desktop or web app
 ASSIGN_LAB_ASSISTANT = True # can be overridden on desktop or web app
@@ -130,6 +131,7 @@ BUILDER_LAB_UPGRADE_PRIORITY = [
 TROOP_DEPLOY_TIME = 2 # seconds
 ATTACK_SLOT_RANGE = (0, 100) # inclusive, first slot is index 0
 EXCLUDE_CLAN_TROOPS = True
+STOP_ATTACK_WHEN_FULL = True # ON: stop home attacks once both storages are full; OFF: keep attacking regardless of storage (can be overridden on desktop or web app)
 ATTACK_HOME_BASE = True # can be overridden on desktop or web app
 ATTACK_BUILDER_BASE = True # can be overridden on desktop or web app
 

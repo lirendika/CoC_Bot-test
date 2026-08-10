@@ -1491,58 +1491,143 @@ class Attacker:
     # 💰 Loot Filter (skip poor bases with Next)
     # ============================================================
 
+    # ---------- loot digit reading (template matching, no OCR engine) ----------
+    # An OCR engine (LLM or easyocr) routinely drops a digit from long numbers.
+    # The loot font is fixed and the digits are bright, so matching each glyph
+    # against rendered templates is both exact and deterministic.
+
+    _GLYPH_CANVAS = (44, 60)   # w, h every digit box is normalised into
+    _digit_templates = None
+
+    @classmethod
+    def _norm_glyph(cls, mask):
+        """Fit a binary glyph into the fixed canvas, preserving aspect ratio."""
+        import cv2, numpy as np
+        cw, ch = cls._GLYPH_CANVAS
+        ys, xs = np.where(mask)
+        if len(xs) == 0: return np.zeros((ch, cw), np.uint8)
+        m = mask[ys.min():ys.max() + 1, xs.min():xs.max() + 1].astype(np.uint8)
+        s = min(cw / m.shape[1], ch / m.shape[0])
+        nw, nh = max(1, int(round(m.shape[1] * s))), max(1, int(round(m.shape[0] * s)))
+        m = cv2.resize(m, (nw, nh), interpolation=cv2.INTER_AREA)
+        out = np.zeros((ch, cw), np.uint8)
+        y0, x0 = (ch - nh) // 2, (cw - nw) // 2
+        out[y0:y0 + nh, x0:x0 + nw] = (m > 0)
+        return out
+
+    @classmethod
+    def _loot_digit_templates(cls):
+        if cls._digit_templates is None:
+            cls._digit_templates = {
+                d: cls._norm_glyph(Frame_Handler.grayscale(render_text(str(d), "SupercellMagic", 100)) >= 128)
+                for d in range(10)
+            }
+        return cls._digit_templates
+
+    @classmethod
+    def _match_digit(cls, box):
+        import numpy as np
+        n = cls._norm_glyph(box)
+        best, best_d = -1.0, None
+        for d, t in cls._loot_digit_templates().items():
+            union = np.logical_or(n, t).sum()
+            iou = np.logical_and(n, t).sum() / union if union else 0.0
+            if iou > best: best, best_d = iou, d
+        return best_d, best
+
+    @classmethod
+    def _read_loot_row(cls, crop_rgb, v_min=225, s_max=90):
+        """Read one loot row (RGB crop) as an int, or None."""
+        import cv2, numpy as np
+
+        # Loot digits are bright and near-white; the coin/elixir/dark icons and
+        # the sandy paths in the terrain are all clearly coloured. Requiring low
+        # saturation drops them without blanking a region (blanking a fixed
+        # region used to swallow the leading digit).
+        hsv = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2HSV)
+        white = ((hsv[..., 2] >= v_min) & (hsv[..., 1] <= s_max)).astype(np.uint8)
+        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8))
+
+        n, lab, st, _ = cv2.connectedComponentsWithStats(white, 8)
+        if n <= 1: return None
+        comps = [(st[i, 0], st[i, 1], st[i, 2], st[i, 3], st[i, 4], i) for i in range(1, n)]
+        hmax = max(c[3] for c in comps)
+        ref_h = float(np.median([c[3] for c in comps if c[3] >= 0.55 * hmax]))
+        keep = [c for c in comps
+                if 0.6 * ref_h <= c[3] <= 1.35 * ref_h    # digit-height band
+                and c[4] >= 0.12 * c[2] * c[3]            # solid enough
+                and c[2] <= 6 * ref_h]                    # not a long streak
+        if not keep: return None
+
+        # Digits share one baseline; whatever else survived (an icon highlight,
+        # a bright leaf) sits off it — keep the largest aligned group.
+        tol = max(3, 0.14 * ref_h)
+        bottoms = [c[1] + c[3] for c in keep]
+        keep = max(([c for c, bb in zip(keep, bottoms) if abs(bb - b) <= tol] for b in bottoms),
+                   key=len)
+        keep.sort()
+
+        widths = [c[2] for c in keep]
+        unit_w = float(np.median([w for w in widths if w > 0.45 * ref_h] or widths))
+
+        digits = []
+        for x, y, w, h, area, i in keep:
+            blob = (lab[y:y + h, x:x + w] == i)
+            k = max(1, int(round(w / unit_w))) if unit_w > 0 else 1
+            if k == 1:
+                digits.append(cls._match_digit(blob)[0])
+            else:
+                step = w / k   # merged glyphs (e.g. "00"): cut into equal slices
+                for j in range(k):
+                    digits.append(cls._match_digit(blob[:, int(j * step):int((j + 1) * step)])[0])
+        if not digits: return None
+        return int("".join(str(d) for d in digits))
+
+    # y-bands of the three "Available Loot" rows, and each one's plausible range
+    LOOT_ROWS = {
+        "gold":   (0.136, 0.182, 100, 3_000_000),
+        "elixir": (0.190, 0.236, 100, 3_000_000),
+        "dark":   (0.243, 0.289, 1, 500_000),
+    }
+
     def _read_available_loot(self):
-        """OCR the enemy's "Available Loot" panel (top-left of the battle
-        screen). Returns {"gold": int, "elixir": int} or None on failure."""
-        import re, cv2, numpy as np
+        """Read the enemy's "Available Loot" panel (top-left of the battle
+        screen). Returns {"gold": int, "elixir": int, "dark": int} or None.
 
-        # One line per resource. The icon's white shine OCRs as a stray
-        # leading "1", so blank the icon first — but its exact x varies, so
-        # find it by color (gold=yellow, elixir=magenta) instead of position.
-        icon_hues = {"gold": (20, 35, 150), "elixir": (140, 170, 100)}
-
+        Validated 15/15 on the debug frames (all three resources, 4-7 digit
+        values, candy/forest/path scenery), stable across v_min 200-240 and
+        s_max 60-120."""
         Frame_Handler.get_frame()
         loot = {}
-        for name, y0, y1 in (("gold", 0.140, 0.185), ("elixir", 0.191, 0.236)):
-            color = Frame_Handler.get_frame_section(0.02, y0, 0.20, y1, grayscale=False, use_cached=True)
-            gray = Frame_Handler.grayscale(color)
-            hc = ((gray >= 240) * 255).astype(np.uint8)
-
-            h0, s0 = icon_hues[name][:2], icon_hues[name][2]
-            hsv = cv2.cvtColor(color, cv2.COLOR_RGB2HSV)
-            icon_mask = (hsv[..., 0] >= h0[0]) & (hsv[..., 0] <= h0[1]) & (hsv[..., 1] >= s0)
-            cols = icon_mask.sum(axis=0)
-            # The icon must sit in the left 30% of the strip
-            search = cols[:int(len(cols) * 0.30)]
-            icon_cols = np.nonzero(search > hc.shape[0] * 0.2)[0]
-            if len(icon_cols) > 0:
-                hc[:, :min(icon_cols.max() + 4, hc.shape[1])] = 0
-
-            # Upscale + pad, otherwise the OCR drops narrow edge digits
-            # (a leading "1" was consistently lost on 1M+ loot values)
-            hc = cv2.resize(hc, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-            hc = cv2.copyMakeBorder(hc, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=0)
-
-            lines = OCR_Handler.get_text(hc)
-            digits = re.sub(r"\D", "", fix_digits("".join(str(l) for l in lines).replace(" ", "")))
-            if not digits: return None
-            value = int(digits)
-            # Sanity: implausible values mean a misread, not a real base
-            if value < 100 or value > 3_000_000: return None
+        for name, (y0, y1, lo, hi) in self.LOOT_ROWS.items():
+            crop = Frame_Handler.get_frame_section(0.02, y0, 0.21, y1, grayscale=False, use_cached=True)
+            value = self._read_loot_row(crop)
+            # Dark elixir is absent on low town halls — treat only gold/elixir
+            # as mandatory so those bases can still be evaluated
+            if value is None or not (lo <= value <= hi):
+                if name == "dark":
+                    loot[name] = 0
+                    continue
+                return None
             loot[name] = value
         return loot
 
     def _find_worthy_target(self, max_nexts=10):
         """
         Keep clicking "Next" until the enemy's available loot meets the
-        configured minimums (MIN_LOOT_GOLD / MIN_LOOT_ELIXIR). Attacks the
-        current base if the loot can't be read or the search limit is hit.
+        configured minimums (MIN_LOOT_GOLD / MIN_LOOT_ELIXIR / MIN_LOOT_DARK).
+        Attacks the current base if the loot can't be read or the search limit
+        is hit.
         """
         import time, numpy as np
 
         min_gold = Task_Handler.setting("min_loot_gold", getattr(configs, "MIN_LOOT_GOLD", 0))
         min_elixir = Task_Handler.setting("min_loot_elixir", getattr(configs, "MIN_LOOT_ELIXIR", 0))
-        if min_gold <= 0 and min_elixir <= 0: return
+        min_dark = Task_Handler.setting("min_loot_dark", getattr(configs, "MIN_LOOT_DARK", 0))
+        if min_gold <= 0 and min_elixir <= 0 and min_dark <= 0: return
+
+        def _fmt(l):
+            return f"gold {l['gold']:,} / elixir {l['elixir']:,} / dark {l.get('dark', 0):,}"
 
         for i in range(max_nexts):
             loot = None
@@ -1553,10 +1638,11 @@ class Attacker:
             if loot is None:
                 print("⚠️ Couldn't read available loot — attacking this base")
                 return
-            if loot["gold"] >= min_gold and loot["elixir"] >= min_elixir:
-                print(f"💰 Target found: gold {loot['gold']:,} / elixir {loot['elixir']:,}")
+            if (loot["gold"] >= min_gold and loot["elixir"] >= min_elixir
+                    and loot.get("dark", 0) >= min_dark):
+                print(f"💰 Target found: {_fmt(loot)}")
                 return
-            print(f"⏭️ Loot too low (gold {loot['gold']:,} / elixir {loot['elixir']:,}) — Next ({i + 1}/{max_nexts})")
+            print(f"⏭️ Loot too low ({_fmt(loot)}) — Next ({i + 1}/{max_nexts})")
             Input_Handler.click(0.915, 0.72) # "Next" button (bottom-right)
             time.sleep(float(np.random.uniform(4.0, 6.5))) # cloud transition
         print("⚠️ Loot minimums never met — attacking the current base")
@@ -1601,8 +1687,10 @@ class Attacker:
                 except: pass
             if time.time() - start_time >= timeout: return
 
-            # No point farming when both storages are already full
-            if self._storages_full(): return
+            # No point farming when both storages are already full — unless the
+            # user turned this off to keep attacking regardless of storage
+            if not Task_Handler.stop_attack_when_full_excluded(use_cached=True) and self._storages_full():
+                return
 
             # Complete an attack
             if self.start_normal_attack(timeout):
