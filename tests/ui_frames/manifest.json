@@ -113,6 +113,48 @@
     },
     "coc_18.647_2026-11/after_end_battle.webp": {
       "screen": "Village right after End Battle on the scouting screen (no troops deployed)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_0.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 0 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_1.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 1 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_2.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 2 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_3.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 3 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_4.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 4 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_5.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 5 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_6.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 6 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_7.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 7 of 8)"
+    },
+    "coc_18.647_2026-11/build_panel_scroll_8.webp": {
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 8 of 8)"
+    },
+    "coc_18.647_2026-11/tap_wall_row.webp": {
+      "screen": "After tapping 'Wall x 325' in the panel: a wall is selected in the village, the panel stays open and the wall bar switches to a two-row layout (Info / Select Row / Upgrade More, then gold / elixir / Wall Ring Upgrade). The wall templates don't match this layout"
+    },
+    "coc_18.647_2026-11/wall_selected_after_panel_close.webp": {
+      "screen": "Same wall still selected after closing the panel with its X: single-row wall bar again (wall_upgrade 0.96; wall_upgrade_more 0.86, under the bot's 0.90 threshold)"
+    },
+    "coc_18.647_2026-11/wall_upgrade_more_stepper.webp": {
+      "screen": "Wall stepper after 'Upgrade More': Remove Wall -1 and Add Wall +10 disabled (salmon labels), Add Wall +1 enabled (white), gold/elixir Upgrade, Wall Ring. wall_add finds +1; _wall_upgrade_buttons finds gold and elixir as 'white'"
+    },
+    "coc_18.647_2026-11/wall_pay_gold_confirm.webp": {
+      "screen": "'Upgrade Walls' confirmation for 3150000 Gold with Cancel / Okay; the attacker 'okay' template matches 1.0. Cancelled while capturing, nothing spent"
+    },
+    "coc_18.647_2026-11/tap_hero_row.webp": {
+      "screen": "Tapping the Archer Queen row opens its upgrade dialog directly. The price (135 000 dark elixir, only 83 017 owned) is red, yet the Confirm button stays green and the 'confirm' template still matches 0.88: the bot must check the price colour itself. Closed without confirming"
     }
   }
 }

@@ -69,9 +69,11 @@ def main():
     if cmd == "scan":
         scan()
     elif cmd == "eval":
-        import attacker, upgrader  # noqa: F401  (available to the expression)
-        A, U = attacker.Attacker(), upgrader.Upgrader()  # constructors only load assets
-        print(eval(args[0]))
+        import attacker, upgrader
+        # as globals, so comprehensions inside the expression can see them too
+        names = {**globals(), "attacker": attacker, "upgrader": upgrader,
+                 "A": attacker.Attacker(), "U": upgrader.Upgrader()}  # constructors only load assets
+        print(eval(args[0], names))
     else:
         raise SystemExit(f"unknown command {cmd!r}\n{__doc__}")
 
