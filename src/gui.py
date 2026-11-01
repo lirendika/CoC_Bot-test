@@ -29,6 +29,21 @@ def run_gui(server_port, pipe, debug=False):
         nswindow = window.native
         nswindow.setAspectRatio_((2, 3))
 
+    def set_dock_icon():
+        # Launched from the desktop app the window runs under the Python
+        # interpreter, which would show Python's rocket in the Dock
+        if sys.platform != "darwin": return
+        try:
+            from pathlib import Path
+            from AppKit import NSApplication, NSImage
+            icon = Path(__file__).resolve().parent.parent / "media" / "CoC_Bot.icns"
+            image = NSImage.alloc().initWithContentsOfFile_(str(icon))
+            if image is not None:
+                NSApplication.sharedApplication().setApplicationIconImage_(image)
+        except Exception:
+            pass # cosmetic only
+
+    set_dock_icon()
     window.events.closed += on_closed
     window.events.loaded += set_aspect_ratio
     webview.start(debug=debug)
