@@ -1,5 +1,5 @@
 {
-  "_about": "Reference screenshots (1920x1080, lossless WebP = pixel-exact) for testing the bot offline: scripts/ui_probe.py runs the bot's real detection code on a frame, scripts/loot_eval.py scores the loot reader on every frame with a 'loot' entry. Folders are named after the CoC UI they show; capture new ones with scripts/capture_frame.py and describe them here.",
+  "_about": "Reference screenshots (1920x1080, lossless WebP = pixel-exact) for testing the bot offline: scripts/ui_probe.py runs the bot's real detection code on a frame, scripts/loot_eval.py scores the loot reader on every frame with a 'loot' entry, scripts/panel_eval.py checks the upgrade panel, storage bars, battle result and dialog readers on every frame. Folders are named after the CoC UI they show; capture new ones with scripts/capture_frame.py and describe them here. Take templates and thresholds from these real captures, never from screen recordings (compression shifts colours).",
   "frames": {
     "old_ui_2026-07/attack_1.webp": {
       "screen": "Attack scouting screen, pre-update UI",

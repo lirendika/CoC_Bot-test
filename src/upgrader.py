@@ -480,7 +480,11 @@ class Upgrader:
             if Task_Handler.heroes_excluded(): exclude += self.hero_names
             rows = Upgrade_Panel.random_candidates(exclude=exclude, from_top=configs.START_FROM_MENU_TOP)
             if not rows:
-                # Nothing else affordable: upgrade the Town Hall if we can
+                # Nothing else affordable: upgrade the Town Hall if we can.
+                # The search above left the list scrolled to its end; the
+                # panel reopens at the top
+                Upgrade_Panel.close()
+                if not self._click_home_builders(): return None
                 found = Upgrade_Panel.find(["Town Hall"], from_top=configs.START_FROM_MENU_TOP)
                 if found is None: return None
                 rows = [found[0]]

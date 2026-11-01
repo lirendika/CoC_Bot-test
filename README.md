@@ -92,3 +92,10 @@
     > 💡 __Tip__: If not using the bot for development purposes, it can be built into an executable or desktop app for convenience using [build.sh](scripts/build.sh). The desktop app GUI or command-line arguments can be used to specify the instance to run if using multiple bot instances. View a demo of the desktop app [here](https://youtube.com/shorts/zVZwBW8QIeY?feature=share).
 
     * To run bots for multiple accounts just create additional BlueStacks instances with BlueStacks' multi-instance manager (ensuring BlueStacks instance names match bot instance IDs), set up the instance as usual, and append new instance names and their Android Debug Bridge addresses to `INSTANCE_IDS` and `ADB_ADDRESSES` in `configs.py`. Specify the instance to run using the `--id` flag (e.g. `python src/main.py --id main`).
+
+## After a Clash of Clans Update
+Game updates move buttons and restyle screens. [tests/ui_frames](tests/ui_frames) keeps pixel-exact screenshots of each UI the bot was adapted to, and [manifest.json](tests/ui_frames/manifest.json) records what each one shows and what the bot must read from it.
+* `python scripts/panel_eval.py` and `python scripts/loot_eval.py` check the bot's screen readers (upgrade panel, storage bars, battle result, dialogs, loot) against those frames; exit code 0 means all agree
+* `python scripts/ui_probe.py <screenshot> scan` scores every template on a screenshot, and `eval "<expression>"` runs any bot function on it
+* `python scripts/capture_frame.py <folder/name>` saves the live BlueStacks screen as a new reference frame
+* `python scripts/upgrade_dryrun.py` drives the real upgrade flows on the live game while blocking every tap that would spend resources
