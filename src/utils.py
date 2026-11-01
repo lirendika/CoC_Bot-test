@@ -219,7 +219,13 @@ def spell_check(text, cutoff=70):
         score = 100 - 10 * (lev + length_penalty)
         return score if score >= score_cutoff else 0
     
-    vocab = Cache_Manager.get("vocab", get_vocab())
+    # The scheduler refreshes the vocab daily; scraping the wiki on every call
+    # took seconds and, when it refused us, lost the name being checked
+    vocab = Cache_Manager.get("vocab")
+    if not vocab:
+        try: vocab = get_vocab()
+        except (KeyboardInterrupt, SystemExit): raise
+        except Exception: return text
     words = re.split(r"[ _]+", text)
     results = []
 
@@ -237,30 +243,38 @@ def fix_digits(text):
         return [fix_digits(t) for t in text]
     return text.lower().replace('o', '0').replace('/', '1').replace('i', '1').replace('z', '2').replace('s', '5').replace('b', '6').replace('j', '7').replace('&', '8')
 
+# CoC 18.647 (2026-11) fills the resource bars from the icon leftwards over a
+# see-through track (x 1497-1869 @1080p). The digits cover the bar's middle,
+# so the fill edge is read on the rows just under its top edge.
+STORAGE_TRACK = (1497, 1869)
+STORAGE_BAR_ROWS = {"gold": (36, 41), "elixir": (109, 117)}
+
 def get_storage_fill_levels():
-    """
-    Measure how full the gold and elixir storages are (0.0-1.0) by reading
-    the horizontal fill bars behind the resource counters (top-right UI).
-    The fill is drawn left-to-right in gold/pink over a dark background, so
-    the colored-pixel fraction ≈ storage fullness.
-    """
-    import cv2
+    """How full the gold and elixir storages are (0.0-1.0), measured on the
+    fill bars behind the resource counters (top right)."""
+    import cv2, numpy as np
 
-    frame = Frame_Handler.get_frame(grayscale=False)
-    h, w = frame.shape[:2]
-    # Bars span x ≈ 0.843-0.988; scan the whole top-right strip for them
-    region = frame[:int(h * 0.20), int(w * 0.82):]
-    hsv = cv2.cvtColor(region, cv2.COLOR_RGB2HSV)
+    hsv = cv2.cvtColor(Frame_Handler.get_frame(grayscale=False), cv2.COLOR_RGB2HSV).astype(int)
     H, S, V = hsv[..., 0], hsv[..., 1], hsv[..., 2]
-    bar_w = (0.988 - 0.843) * w
-
+    masks = {
+        "gold": (H >= 15) & (H <= 35) & (S >= 120) & (V >= 150),
+        "elixir": (H >= 140) & (H <= 175) & (S >= 80) & (V >= 120),
+    }
+    left, right = STORAGE_TRACK
     levels = {}
-    for name, mask in (
-        ("gold", (H >= 20) & (H <= 35) & (S >= 150) & (V >= 150)),
-        ("elixir", (H >= 150) & (H <= 175) & (S >= 90) & (V >= 150)),
-    ):
-        rows = mask.sum(axis=1)
-        levels[name] = min(1.0, float(rows.max()) / bar_w) if len(rows) else 0.0
+    for name, (y0, y1) in STORAGE_BAR_ROWS.items():
+        edges = []
+        for row in masks[name][y0:y1 + 1]:
+            # Walk left from the icon while the fill goes on (gaps up to 4px);
+            # nothing next to the icon means a nearly empty storage
+            x = edge = right - 9
+            if row[x]:
+                while x > left - 3 and edge - x <= 4:
+                    if row[x]: edge = x
+                    x -= 1
+            else: edge = right
+            edges.append(edge)
+        levels[name] = min(1.0, max(0.0, (right - float(np.median(edges))) / (right - left)))
     return levels
 
 def parse_time(text):
@@ -407,9 +421,14 @@ def to_home_base(ref_cache=False):
     import cv2, time, numpy as np
     
     if ref_cache and TEMP_CACHE.get("location") == "home_base": return
-    
+
     TEMP_CACHE["location"] = "home_base"
-    
+
+    # an upgrade panel left open would hide the builder counters
+    try: Upgrade_Panel.close()
+    except (KeyboardInterrupt, SystemExit): raise
+    except: pass
+
     try:
         get_home_builders(0, return_amount=False)
         return
@@ -630,6 +649,11 @@ def require_exit(n=5, delay=0.1):
             except (KeyboardInterrupt, SystemExit): raise
             except: pass
             Input_Handler.click_exit(n, delay)
+            # click_exit doesn't close the upgrade panel (its corner tap lands
+            # on the Pets tab); a panel left open hides the builder counters
+            try: Upgrade_Panel.close()
+            except (KeyboardInterrupt, SystemExit): raise
+            except: pass
             return result
         return wrapper
     return decorator
@@ -1811,6 +1835,269 @@ class Digit_Reader:
                     digits.append(cls.match(blob[:, int(j * step):int((j + 1) * step)])[0])
         if not digits: return None
         return int("".join(str(d) for d in digits))
+
+class Upgrade_Panel:
+    """The right-side upgrade list that replaced the top builder and lab menus
+    in CoC 18.647 (2026-11), opened with the Build button.
+
+    Rows are read straight off the screen: every row you can buy ends in a
+    right-aligned price followed by a gold, elixir or dark-elixir icon, while
+    in-progress rows (stopwatch only), section headers and locked rows have
+    none, so only purchasable rows come back. Pixel constants are at
+    WINDOW_DIMS (1920x1080), the size every frame is resized to."""
+
+    BUILD_BUTTON = (0.935, 0.889)
+    CLOSE = (0.983, 0.031)
+    DIALOG_CLOSE = (0.884, 0.074)      # X of an upgrade dialog opened from a row
+    TABS = ("builders", "research", "crafting", "pets")
+    _TAB_X = ((1410, 1525), (1540, 1655), (1670, 1785), (1800, 1912))
+    _TAB_Y = (978, 1062)
+    _CLOSE_BOX = (1868, 16, 1906, 52)         # the panel's red X
+    _DIALOG_CLOSE_BOX = (1666, 52, 1728, 112) # an upgrade dialog's red X
+    LIST_Y = (70, 962)                        # between the header and the tabs
+    PRICE_X = (1700, 1880)                    # right-aligned times and prices
+    ICON_X = (1880, 1908)                     # resource or stopwatch icon
+    NAME_X = (1484, 1800)
+    NAME_LEFT = (1488, 1502)                  # where a name's first letter sits
+    TAP_X = 1600
+    NAME_THRESH = 0.72   # true names score >= 0.77, other names <= 0.67
+    _tpl = {}
+
+    @staticmethod
+    def _frame(frame=None):
+        return Frame_Handler.get_frame(grayscale=False) if frame is None else frame
+
+    @staticmethod
+    def _red(box):
+        b = box.astype(int)
+        return int(((b[..., 0] > 200) & (b[..., 1] < 90) & (b[..., 2] < 90)).sum())
+
+    @classmethod
+    def is_open(cls, frame=None):
+        x0, y0, x1, y1 = cls._CLOSE_BOX
+        return cls._red(cls._frame(frame)[y0:y1, x0:x1]) >= 150
+
+    @classmethod
+    def dialog_open(cls, frame=None):
+        x0, y0, x1, y1 = cls._DIALOG_CLOSE_BOX
+        return cls._red(cls._frame(frame)[y0:y1, x0:x1]) >= 600
+
+    @classmethod
+    def active_tab(cls, frame=None):
+        import numpy as np
+        frame = cls._frame(frame)
+        if not cls.is_open(frame): return None
+        # the selected tab is drawn noticeably brighter (~146 vs ~110)
+        v = [float(np.median(frame[cls._TAB_Y[0]:cls._TAB_Y[1], a:b].max(axis=2))) for a, b in cls._TAB_X]
+        order = np.argsort(v)[::-1]
+        if v[order[0]] - v[order[1]] < 15: return None
+        return cls.TABS[order[0]]
+
+    @classmethod
+    def open(cls, tab="builders", timeout=5):
+        import time
+        start = time.time()
+        if not cls.is_open():
+            Input_Handler.click(*cls.BUILD_BUTTON)
+            while not cls.is_open():
+                if time.time() - start > timeout: return False
+                time.sleep(0.2)
+        if cls.active_tab() != tab:
+            i = cls.TABS.index(tab)
+            Input_Handler.click(sum(cls._TAB_X[i]) / 2 / WINDOW_DIMS[0], sum(cls._TAB_Y) / 2 / WINDOW_DIMS[1])
+            while cls.active_tab() != tab:
+                if time.time() - start > timeout: return False
+                time.sleep(0.2)
+        cls._settle()   # the panel's X shows before its list has slid in
+        return True
+
+    @classmethod
+    def close(cls, timeout=3, dialog_only=False):
+        """Close an upgrade dialog opened from a row, then (unless dialog_only)
+        the panel. A tap in the bottom-right corner (click_exit) lands on the
+        Pets tab instead and leaves the panel covering the builder counters."""
+        import time
+        start = time.time()
+        frame = cls._frame()
+        while cls.dialog_open(frame) or (not dialog_only and cls.is_open(frame)):
+            if time.time() - start > timeout: return False
+            Input_Handler.click(*(cls.DIALOG_CLOSE if cls.dialog_open(frame) else cls.CLOSE))
+            time.sleep(0.5)
+            frame = cls._frame()
+        return True
+
+    @staticmethod
+    def _bands(mask, min_px=6, min_h=10):
+        import numpy as np
+        rows = mask.sum(1)
+        out, s = [], None
+        for y, v in enumerate(np.append(rows, 0)):
+            if v >= min_px and s is None: s = y
+            elif v < min_px and s is not None:
+                if y - s >= min_h: out.append((s, y - 1))
+                s = None
+        return out
+
+    @classmethod
+    def rows(cls, frame=None):
+        """Purchasable rows on screen, top to bottom, as dicts with name_y,
+        price_y, resource, affordable (price not red) and new (green name: a
+        new building to place, not an upgrade of an existing one)."""
+        import cv2, numpy as np
+        frame = cls._frame(frame)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+        y0, y1 = cls.LIST_Y
+        txt = frame[y0:y1, cls.PRICE_X[0]:cls.PRICE_X[1]].astype(int)
+        r, g, b = txt[..., 0], txt[..., 1], txt[..., 2]
+        white = np.minimum(np.minimum(r, g), b) >= 215
+        red = (r >= 180) & (r - g >= 70) & (r - b >= 70)
+        out = []
+        for a, bb in cls._bands(white | red):
+            icon = hsv[y0 + a:y0 + bb + 1, cls.ICON_X[0]:cls.ICON_X[1]]
+            H, S, V = icon[..., 0], icon[..., 1], icon[..., 2]
+            counts = {
+                "gold": int(((H >= 15) & (H <= 35) & (S > 120) & (V > 150)).sum()),
+                "elixir": int(((H >= 135) & (H <= 170) & (S > 80) & (V > 80)).sum()),
+                "dark": int((V < 70).sum()),
+            }
+            grey = int(((S < 50) & (V > 150)).sum())
+            resource = max(counts, key=counts.get)
+            if grey >= 40 or counts[resource] < 120: continue  # a time line, not a price
+            price_y = y0 + (a + bb) / 2
+            name_y = price_y - 26
+            if name_y - 14 < y0 or price_y + 10 > y1: continue  # cut off by header/tabs
+            n = frame[int(name_y) - 12:int(name_y) + 12, cls.NAME_X[0]:cls.NAME_X[1]].astype(int)
+            nr, ng, nb = n[..., 0], n[..., 1], n[..., 2]
+            name_white = int((np.minimum(np.minimum(nr, ng), nb) >= 215).sum())
+            name_green = int(((ng >= 200) & (nr <= 210) & (nb <= 140) & (ng - nb >= 80)).sum())
+            out.append({
+                "name_y": name_y,
+                "price_y": price_y,
+                "resource": resource,
+                "affordable": int(red[a:bb + 1].sum()) < 0.25 * int(white[a:bb + 1].sum()),
+                "new": name_green > name_white,
+            })
+        return out
+
+    @classmethod
+    def _word_tpl(cls, word):
+        import numpy as np
+        if word not in cls._tpl:
+            t = Frame_Handler.grayscale(render_text(word, "SupercellMagic", 17))
+            cls._tpl[word] = ((t >= 128) * 255).astype(np.uint8)
+        return cls._tpl[word]
+
+    @staticmethod
+    def _best(mask, tpl, lo, hi):
+        """Best match of tpl whose left edge lies in mask columns [lo, hi]."""
+        import cv2
+        hi = min(hi, mask.shape[1] - tpl.shape[1])
+        if tpl.shape[0] > mask.shape[0] or hi < lo: return 0.0, lo
+        res = cv2.matchTemplate(mask[:, lo:hi + tpl.shape[1]], tpl, cv2.TM_CCOEFF_NORMED)
+        _, conf, _, (mx, _) = cv2.minMaxLoc(res)
+        return conf, lo + mx
+
+    @classmethod
+    def matches(cls, row, name, frame=None):
+        """Does the row's name read `name`, optionally followed by " x N"?
+
+        Each word is matched on its own, anchored right after the previous
+        one: matching the whole string let font-size drift pile up on long
+        names and let shared words carry a wrong one ("Spell Tower" scored
+        0.71 on "Bomb Tower"). The glyph after the name must be the
+        lowercase multiplier, so "Bomb" doesn't match "Bomb Tower"."""
+        import numpy as np
+        frame = cls._frame(frame)
+        y = int(row["name_y"])
+        crop = frame[y - 16:y + 16, cls.NAME_X[0]:cls.NAME_X[1]].astype(int)
+        mask = ((crop.min(axis=2) >= 200) * 255).astype(np.uint8)
+        lo, hi = cls.NAME_LEFT[0] - cls.NAME_X[0], cls.NAME_LEFT[1] - cls.NAME_X[0]
+        right = None
+        for i, word in enumerate(name.split(" ")):
+            tpl = cls._word_tpl(word)
+            if i: lo, hi = right + 2, right + 18
+            conf, x = cls._best(mask, tpl, lo, hi)
+            if conf < cls.NAME_THRESH: return False
+            right = x + tpl.shape[1]
+        tail = mask[:, right + 3:right + 30] > 0   # 3px slack for the last glyph
+        cols = np.where(tail.any(0))[0]
+        if len(cols) == 0 or cols[0] > 14: return True
+        conf, _ = cls._best(mask, cls._word_tpl("x"), right + 2, right + 18)
+        return conf >= 0.70
+
+    @classmethod
+    def _signature(cls, frame=None):
+        import cv2
+        frame = cls._frame(frame)
+        crop = frame[cls.LIST_Y[0]:cls.LIST_Y[1], cls.NAME_X[0]:cls.PRICE_X[1]]
+        return cv2.resize(Frame_Handler.grayscale(crop), (64, 180), interpolation=cv2.INTER_AREA).astype(int)
+
+    @classmethod
+    def scroll(cls, down=True):
+        """Swipe the list about half a page. False once it no longer moves."""
+        before = cls._signature()
+        x = cls.TAP_X / WINDOW_DIMS[0]
+        y1, y2 = (0.78, 0.36) if down else (0.36, 0.78)
+        Input_Handler.swipe(x1=x, y1=y1, x2=x, y2=y2, duration=0, hold_end_time=150, inter_points=10)
+        return abs(cls._settle() - before).mean() > 3
+
+    @classmethod
+    def _settle(cls, timeout=1.5):
+        """Wait for the list to stop moving and return its signature: a page
+        read while it still slides reads rows at the wrong place."""
+        import time
+        start = time.time()
+        sig = cls._signature()
+        while time.time() - start < timeout:
+            time.sleep(0.15)
+            now = cls._signature()
+            if abs(now - sig).mean() < 1: return now
+            sig = now
+        return sig
+
+    @classmethod
+    def scroll_to_end(cls, down=True, max_scrolls=25):
+        for _ in range(max_scrolls):
+            if not cls.scroll(down): return
+
+    @classmethod
+    def pages(cls, from_top=True, max_scrolls=25):
+        """Yield one fresh frame per page while walking the whole list."""
+        if not from_top: cls.scroll_to_end(down=True, max_scrolls=max_scrolls)
+        for _ in range(max_scrolls + 1):
+            yield cls._frame()
+            if not cls.scroll(down=from_top): return
+
+    @classmethod
+    def find(cls, names, affordable_only=True, ignore_price_for=(), from_top=True):
+        """First purchasable row (white name) reading one of `names`, as
+        (row, name), or None. Prices of `ignore_price_for` rows are not
+        checked: walls can be paid in either currency."""
+        for frame in cls.pages(from_top):
+            for row in cls.rows(frame):
+                if row["new"]: continue
+                for name in names:
+                    if affordable_only and not row["affordable"] and name not in ignore_price_for: continue
+                    if cls.matches(row, name, frame): return row, name
+        return None
+
+    @classmethod
+    def random_candidates(cls, exclude=(), from_top=True):
+        """The affordable upgrades (white names) not reading any of `exclude`
+        on the first page that has one, in random order; [] if none."""
+        import random
+        for frame in cls.pages(from_top):
+            candidates = [r for r in cls.rows(frame)
+                          if r["affordable"] and not r["new"]
+                          and not any(cls.matches(r, n, frame) for n in exclude)]
+            if candidates:
+                random.shuffle(candidates)
+                return candidates
+        return []
+
+    @classmethod
+    def tap(cls, row):
+        Input_Handler.click(cls.TAP_X / WINDOW_DIMS[0], (row["price_y"] - 13) / WINDOW_DIMS[1])
 
 class Dev_Tools:
     @classmethod

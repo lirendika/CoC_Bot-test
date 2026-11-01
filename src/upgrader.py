@@ -27,11 +27,13 @@ class Upgrader:
     # 📱 Screen Interaction
     # ============================================================
     
+    # CoC 18.647 (2026-11) replaced the top builder and lab menus with one
+    # right-side panel; its builder and research tabs are the two lists
     def _click_home_builders(self):
-        Input_Handler.click(0.5, 0.05)
-    
+        return Upgrade_Panel.open("builders")
+
     def _click_home_lab(self):
-        Input_Handler.click(0.4, 0.05)
+        return Upgrade_Panel.open("research")
 
     def _click_builder_builders(self):
         Input_Handler.click(0.6, 0.05)
@@ -50,6 +52,63 @@ class Upgrader:
             lambda: Frame_Handler.locate(self.assets["confirm"], grayscale=False, thresh=0.85, use_cached=True),
             timeout=timeout
         )
+
+    def _confirm_upgrade_dialog(self, name=None, timeout=3):
+        """Press Confirm on the upgrade dialog a panel row opened and return
+        the upgrade's name, or None (leaving the dialog for Upgrade_Panel.close).
+
+        Refuses when the price is red: the Confirm button stays green when we
+        can't afford it, and pressing it then offers to buy the rest with gems."""
+        import time
+        start = time.time()
+        while True:
+            x, y = Frame_Handler.locate(self.assets["confirm"], grayscale=False, thresh=0.85)
+            if x is not None and y is not None: break
+            if time.time() - start > timeout: return None
+            time.sleep(0.2)
+        # The resource Confirm sits right of the hammer (magic item) Confirm
+        if x < 0.6: return None
+        price = Frame_Handler.get_frame_section(x - 0.07, y + 0.012, x + 0.06, y + 0.057, grayscale=False, use_cached=True).astype(int)
+        red = int(((price[..., 0] > 180) & (price[..., 0] - price[..., 1] > 60) & (price[..., 0] - price[..., 2] > 60)).sum())
+        if red > 200: return None
+        if name is None:
+            try: name = self._get_upgrade_name()
+            except (KeyboardInterrupt, SystemExit): raise
+            except Exception: name = "upgrade"   # the name is only for the notification
+        Input_Handler.click(x, y)
+        if self._builders_busy(): return None
+        return name
+
+    def _builders_busy(self, timeout=2):
+        """After pressing Confirm or Okay: True when the game answered "All
+        builders are busy!" instead of starting the upgrade. That popup offers
+        to finish another upgrade for gems with a button mid-screen, so it is
+        never pressed: one corner tap (click_exit) closes it."""
+        import time
+        start = time.time()
+        while time.time() - start < timeout:
+            time.sleep(0.25)
+            x, y = Frame_Handler.locate(self.assets["builders_busy"], thresh=0.85)
+            if x is not None and y is not None:
+                print("👷 All builders are busy: upgrade not started")
+                Input_Handler.click_exit()
+                time.sleep(0.5)
+                return True
+        return False
+
+    def _confirm_first(self, rows, max_tries=3):
+        """Tap these rows of the open panel in turn until one opens an upgrade
+        dialog we can confirm, and return its name, or None. A row that opens
+        another kind of screen is closed and the next one tried."""
+        import time
+        for row in rows[:max_tries]:
+            Upgrade_Panel.tap(row)
+            time.sleep(0.8)
+            name = self._confirm_upgrade_dialog()
+            if name is not None: return name
+            Upgrade_Panel.close(dialog_only=True)
+            if not Upgrade_Panel.is_open(): return None   # the rows are gone
+        return None
 
     def _wall_locate_all(self, asset_name, thresh=0.90):
         # Enabled wall-bar button labels are white; disabled ones turn salmon
@@ -83,9 +142,15 @@ class Upgrader:
         # "Upgrade More" also contains the word "Upgrade" — drop matches that
         # overlap it, then drop anything without a price above it
         more = self._wall_locate_all("wall_upgrade_more")
+        frame = Frame_Handler.get_frame(grayscale=False, use_cached=True)
+        h, w = frame.shape[:2]
         btns = []
         for x, y in self._wall_locate_all("wall_upgrade"):
             if any(abs(x - mx) < 0.04 for mx, my in more): continue
+            # The blue Wall Ring button also reads "Upgrade" (0.76-0.78) and
+            # its ring count looks like a white price: never pay with rings
+            bg = frame[int(h*(y-0.06)):int(h*(y-0.03)), int(w*(x-0.04)):int(w*(x+0.04))].astype(int)
+            if bg.size and ((bg[..., 2] - bg[..., 0]) > 40).mean() > 0.2: continue
             status = self._wall_price_status(x, y)
             if status != "none": btns.append((x, y, status))
         return sorted(btns)
@@ -106,10 +171,11 @@ class Upgrader:
         """
         import time
 
-        # Open the stepper (absent when only a single wall can be selected)
+        # Open the stepper (absent when only a single wall can be selected);
+        # max_walls=0 upgrades just the selected wall
         Frame_Handler.get_frame()
         more = self._wall_locate_all("wall_upgrade_more")
-        if more:
+        if more and max_walls > 0:
             Input_Handler.click(*more[0])
             time.sleep(0.8)
 
@@ -124,6 +190,7 @@ class Upgrader:
                     rm = self._wall_locate_all("wall_remove")
                     if not rm: break
                     Input_Handler.click(*max(rm, key=lambda p: p[0]))
+                    added -= 1
                     time.sleep(0.4)
                     Frame_Handler.get_frame()
                     btns = self._wall_upgrade_buttons()
@@ -151,8 +218,8 @@ class Upgrader:
             x, y = Frame_Handler.locate(Asset_Manager.attacker_assets["okay"], thresh=0.85)
             if x is not None and y is not None: return x, y
             return Frame_Handler.locate(self.assets["confirm"], grayscale=False, thresh=0.85, use_cached=True)
-        click_with_timeout(locate_confirmation, timeout=4)
-        time.sleep(0.5)
+        if not click_with_timeout(locate_confirmation, timeout=4): return None
+        if self._builders_busy(): return None
         print(f"🧱 Wall batch: upgraded {added + 1} wall piece(s) in one transaction")
         return "Wall"
 
@@ -303,7 +370,10 @@ class Upgrader:
         x, y = Frame_Handler.locate(self.assets["upgrade_name"], ref="lc", thresh=0.9)
         section = Frame_Handler.get_frame_section(x+0.122, y-0.04, 1-x, y+0.035, high_contrast=True, thresh=255, use_cached=True)
         if configs.DEBUG: Frame_Handler.save_frame(section, "debug/upgrade_name.png")
-        upgrade_name = spell_check(re.sub(r"\s*x\d+$", "", OCR_Handler.get_text(section)[0].lower()[:-3]))
+        # The title reads "Upgrade <name> to Level N?": the section starts after
+        # "Upgrade" and the yellow "Level N?" drops out of the white mask
+        text = re.sub(r"\s+to\b.*$", "", " ".join(OCR_Handler.get_text(section)).lower().strip())
+        upgrade_name = spell_check(re.sub(r"\s*x\d+$", "", text))
         return upgrade_name
 
     def _get_upgrade_menu(self, frame, sug_loc, sug_width, return_bounds=False):
@@ -401,97 +471,20 @@ class Upgrader:
     
     @require_exit()
     def home_random_upgrade(self):
-        import time, numpy as np
-
         try:
-            # Open upgrade list menu
-            self._click_home_builders()
-            time.sleep(0.5)
-            
-            # Locate menu boundaries
-            sug_template, sug_width, sug_height = self._get_suggested_upgrade_template()
-            x_sug, y_sug = Frame_Handler.locate(sug_template, thresh=0.70, grayscale=False)
-            if x_sug is None or y_sug is None: return None
-            frame = Frame_Handler.get_frame(grayscale=False, use_cached=True)
-            menu, menu_left, menu_top, menu_right, menu_bottom = self._get_upgrade_menu(frame, (x_sug, y_sug), sug_width, return_bounds=True)
-            menu_center = (menu_left + menu_right) / 2
-            if configs.START_FROM_MENU_TOP:
-                Input_Handler.swipe_up(x=menu_center, y1=y_sug, y2=0.15, duration=0, hold_end_time=100, inter_points=10)
-            else:
-                self._scroll_to_menu_bottom(menu_left, menu_right, menu_top, menu_bottom)
-            
-            town_hall_template = [render_text("Town Hall", "CCBackBeat", 27)]
-            hero_templates = [render_text(hero, "SupercellMagic", 19) for hero in self.hero_names]
-            gem_templates = [render_text(name, "CCBackBeat", 27) for name in self.gem_purchase_names]
-            heros_excluded = Task_Handler.heroes_excluded()
-
-            def locate_upgrade():
-                frame = Frame_Handler.get_frame(grayscale=False)
-                frame_gray = Frame_Handler.grayscale(frame)
-                menu = Frame_Handler.crop(frame, menu_left, menu_top, menu_right, menu_bottom)
-                x_sug, y_sug = Frame_Handler.locate(sug_template, frame, thresh=0.70, grayscale=False)
-
-                # Find a valid upgrade
-                potential_y_locs = self._get_potential_upgrade_locs(menu)
-                if len(potential_y_locs) == 0: return None, None
-                potential_y_locs = potential_y_locs / WINDOW_DIMS[1] + menu_top
-                if y_sug is not None: potential_y_locs = potential_y_locs[potential_y_locs > y_sug]
-
-                # Locate invalid upgrades
-                locs = Frame_Handler.batch_locate(town_hall_template + hero_templates + gem_templates, frame_gray, thresh=0.80, ref="lc", null_val=-1)
-                town_hall_loc = locs[0]
-                hero_locs = locs[1:1+len(hero_templates)]
-                gem_locs = locs[1+len(hero_templates):]
-                # Gem-purchase items (e.g. Builder's Hut) are ALWAYS off-limits
-                invalid_locs = [town_hall_loc] + gem_locs
-                if heros_excluded:
-                    invalid_locs += hero_locs
-                invalid_y_locs = np.array(invalid_locs)[:, 1]
-                
-                # Choose an upgrade
-                x_upgrade, y_upgrade = None, None
-                for y_loc in np.random.permutation(potential_y_locs):
-                    if min(abs(invalid_y_locs - y_loc)) > 0.02:
-                        x_upgrade = menu_center
-                        y_upgrade = y_loc
-                        break
-                if x_upgrade is None or y_upgrade is None:
-                    # If no valid upgrades found but town hall is found, then upgrade it
-                    if invalid_y_locs[0] != -1 and min(abs(town_hall_loc[1] - potential_y_locs)) < 0.02:
-                        x_upgrade, y_upgrade = menu_center, town_hall_loc[1]
-                    else: return None, None
-                return x_upgrade, y_upgrade
-            
-            # Choose an upgrade
-            x_upgrade, y_upgrade = self._scroll_locate_upgrade(
-                locate_upgrade,
-                menu_left,
-                menu_right,
-                menu_top,
-                menu_bottom,
-                dir="down" if configs.START_FROM_MENU_TOP else "up",
-            )
-            if x_upgrade is None or y_upgrade is None: return None
-            Input_Handler.click(x_upgrade, y_upgrade)
-            time.sleep(0.5)
-            
-            # Hero upgrades go directly to confirm screen now
-            in_hero_hall = not get_home_builders(0, return_amount=False, raise_exception=False)
-            if in_hero_hall:
-                if Task_Handler.heroes_excluded(): return None
-            else:
-                self._click_home_builders()
-                
-                if not self._click_upgrade(): return None
-                time.sleep(0.5)
-            
-            # Get upgrade name
-            upgrade_name = self._get_upgrade_name()
-            
-            # Click confirm button
-            if not self._click_home_confirm(): return None
-            time.sleep(0.5)
-            return upgrade_name
+            if not self._click_home_builders(): return None
+            # Walls select a wall instead of opening a dialog (handled by the
+            # wall paths), the Crafting Station opens its module picker; gem
+            # purchases and, unless enabled, heroes are off-limits
+            exclude = ["Town Hall", "Wall", "Crafting Station"] + self.gem_purchase_names
+            if Task_Handler.heroes_excluded(): exclude += self.hero_names
+            rows = Upgrade_Panel.random_candidates(exclude=exclude, from_top=configs.START_FROM_MENU_TOP)
+            if not rows:
+                # Nothing else affordable: upgrade the Town Hall if we can
+                found = Upgrade_Panel.find(["Town Hall"], from_top=configs.START_FROM_MENU_TOP)
+                if found is None: return None
+                rows = [found[0]]
+            return self._confirm_first(rows)
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:
             if configs.DEBUG: print("home_random_upgrade", e)
@@ -502,93 +495,35 @@ class Upgrader:
         import time, numpy as np
 
         try:
-            # Render templates
             if type(upgrade_text) == str: upgrade_text = [upgrade_text]
             if Task_Handler.heroes_excluded():
                 upgrade_text = list(set(upgrade_text) - set(self.hero_names))
             if len(upgrade_text) == 0: return None
-            templates = [render_text(text, "CCBackBeat", 27) for text in upgrade_text]
-            np.random.shuffle(templates)
-            
-            # Open upgrade list menu
-            self._click_home_builders()
-            time.sleep(0.5)
-            
-            # Find suggested upgrades label
-            sug_template, sug_width, sug_height = self._get_suggested_upgrade_template()
-            x_sug, y_sug = Frame_Handler.locate(sug_template, thresh=0.70, grayscale=False)
-            if x_sug is None or y_sug is None: return None
-            frame = Frame_Handler.get_frame(grayscale=False, use_cached=True)
-            menu, menu_left, menu_top, menu_right, menu_bottom = self._get_upgrade_menu(frame, (x_sug, y_sug), sug_width, return_bounds=True)
-            
-            # Move ongoing upgrades out of view
-            if configs.START_FROM_MENU_TOP:
-                Input_Handler.swipe_up(x=x_sug, y1=y_sug, y2=0.15, duration=0, hold_end_time=100, inter_points=10)
-            else:
-                self._scroll_to_menu_bottom(menu_left, menu_right, menu_top, menu_bottom)
-            
-            # Find upgrade text
-            def locate_upgrade():
-                frame = Frame_Handler.get_frame(grayscale=False)
-                frame_gray = Frame_Handler.grayscale(frame)
-                x_sug, y_sug = Frame_Handler.locate(sug_template, frame, thresh=0.70, grayscale=False)
-                res = Frame_Handler.batch_locate(templates, frame_gray, thresh=0.80, ref="lc", return_all=True)
-                for items in res:
-                    for x, y in items:
-                        if x is not None and y is not None and (y_sug is None or (y_sug is not None and y > y_sug)):
-                            section = Frame_Handler.crop(frame, menu_left, y-0.02, menu_right, y+0.02)
-                            # The list only shows the gold price — walls can also be
-                            # paid with elixir, so a red price doesn't mean unaffordable
-                            sufficient_resources = ignore_insufficient or not check_color((255, 136, 127), section, tol=10)
-                            if sufficient_resources:
-                                # Check that located upgrade name is left aligned
-                                if -0.005 < (x - menu_left) < 0.05:
-                                    return x, y
-                                # Or if it is left aligned to "New" label
-                                new_x, new_y = Frame_Handler.locate(render_text("New", "CCBackBeat", 27, color=(13, 255, 13)), filter_color((13, 255, 13), section), thresh=0.70, grayscale=False, ref="rc")
-                                if new_x is not None and new_y is not None and abs(x - (menu_left + new_x/section.shape[1])) < 0.05:
-                                    return x, y
-                return None, None
+            names = list(upgrade_text)
+            np.random.shuffle(names)
 
-            x, y = self._scroll_locate_upgrade(
-                locate_upgrade,
-                menu_left,
-                menu_right,
-                menu_top,
-                menu_bottom,
-                dir="down" if configs.START_FROM_MENU_TOP else "up",
-            )
+            if not self._click_home_builders(): return None
+            # Walls can be paid in gold or elixir but the list shows one price,
+            # so a red wall price doesn't mean we can't afford them
+            found = Upgrade_Panel.find(names, affordable_only=not ignore_insufficient,
+                                       ignore_price_for=("Wall",), from_top=configs.START_FROM_MENU_TOP)
+            if found is None: return None
+            row, name = found
+            Upgrade_Panel.tap(row)
+            time.sleep(0.8)
 
-            if x is None or y is None: return None
-            Input_Handler.click(x_sug, y)
-            time.sleep(0.5)
-
-            # Hero upgrades go directly to confirm screen now
-            in_hero_hall = not get_home_builders(0, return_amount=False, raise_exception=False)
-            if in_hero_hall:
-                if Task_Handler.heroes_excluded(): return None
-            else:
-                self._click_home_builders()
-
-                # Walls use their own action bar (stepper + dual-currency pay)
-                if wall_batch:
-                    return self._wall_batch_upgrade()
-
-                if not self._click_upgrade(): return None
-                time.sleep(0.5)
-
-            # Get upgrade name
-            upgrade_name = self._get_upgrade_name()
-
-            # Click confirm button
-            if not self._click_home_confirm(): return None
-            time.sleep(0.5)
-            return upgrade_name
+            if name == "Wall":
+                # A wall row selects a wall in the village instead of opening a
+                # dialog, and the panel stays open over the wall bar (whose
+                # buttons then reflow into two rows): close the panel first
+                Upgrade_Panel.close()
+                return self._wall_batch_upgrade(max_walls=200 if wall_batch else 0)
+            return self._confirm_upgrade_dialog(name)
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:
             if configs.DEBUG: print("home_specified_upgrade", e)
             return None
-    
+
     @require_exit()
     def home_upgrade(self):
         if not Task_Handler.home_base_priority_excluded():
@@ -636,137 +571,36 @@ class Upgrader:
     
     @require_exit()
     def home_lab_random_upgrade(self):
-        import time, numpy as np
-        
         try:
-            # Open lab upgrade list menu
-            self._click_home_lab()
-            time.sleep(0.5)
-            
-            # Locate menu boundaries
-            sug_template, sug_width, sug_height = self._get_suggested_upgrade_template()
-            x_sug, y_sug = Frame_Handler.locate(sug_template, thresh=0.70, grayscale=False)
-            if x_sug is None or y_sug is None: return None
-            frame = Frame_Handler.get_frame(grayscale=False, use_cached=True)
-            menu, menu_left, menu_top, menu_right, menu_bottom = self._get_upgrade_menu(frame, (x_sug, y_sug), sug_width, return_bounds=True)
-            menu_center = (menu_left + menu_right) / 2
-            if configs.START_FROM_MENU_TOP:
-                Input_Handler.swipe_up(x=x_sug, y1=y_sug, y2=0.15, duration=0, hold_end_time=100, inter_points=10)
-            else:
-                self._scroll_to_menu_bottom(menu_left, menu_right, menu_top, menu_bottom)
-            
-            def locate_upgrade():
-                frame = Frame_Handler.get_frame(grayscale=False)
-                menu = Frame_Handler.crop(frame, menu_left, menu_top, menu_right, menu_bottom)
-                x_sug, y_sug = Frame_Handler.locate(sug_template, frame, thresh=0.70, grayscale=False)
-
-                # Find a valid upgrade
-                potential_y_locs = self._get_potential_upgrade_locs(menu)
-                if len(potential_y_locs) == 0: return None, None
-                potential_y_locs = potential_y_locs / WINDOW_DIMS[1] + menu_top
-                if y_sug is not None: potential_y_locs = potential_y_locs[potential_y_locs > y_sug]
-
-                # Choose an upgrade
-                x_upgrade, y_upgrade = menu_center, np.random.choice(potential_y_locs)
-                return x_upgrade, y_upgrade
-            
-            x_upgrade, y_upgrade = self._scroll_locate_upgrade(
-                locate_upgrade,
-                menu_left,
-                menu_right,
-                menu_top,
-                menu_bottom,
-                dir="down" if configs.START_FROM_MENU_TOP else "up",
-            )
-            if x_upgrade is None or y_upgrade is None: return None
-            Input_Handler.click(x_upgrade, y_upgrade)
-            time.sleep(0.5)
-            
-            # Get upgrade name
-            upgrade_name = self._get_upgrade_name()
-
-            # Click confirm button
-            if not self._click_home_confirm(): return None
-            time.sleep(0.5)
-            return upgrade_name
+            if not self._click_home_lab(): return None
+            return self._confirm_first(Upgrade_Panel.random_candidates(from_top=configs.START_FROM_MENU_TOP))
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:
             if configs.DEBUG: print("home_lab_upgrade", e)
             return None
-    
+
     @require_exit()
     def home_lab_specified_upgrade(self, upgrade_text):
         import time, numpy as np
-        
+
         try:
-            # Render templates
             if type(upgrade_text) == str: upgrade_text = [upgrade_text]
             if len(upgrade_text) == 0: return None
-            templates = [render_text(text, "CCBackBeat", 27) for text in upgrade_text]
-            np.random.shuffle(templates)
-            
-            # Open lab upgrade list menu
-            self._click_home_lab()
-            time.sleep(0.5)
-            
-            # Find suggested upgrades label
-            sug_template, sug_width, sug_height = self._get_suggested_upgrade_template()
-            x_sug, y_sug = Frame_Handler.locate(sug_template, thresh=0.70, grayscale=False)
-            if x_sug is None or y_sug is None: return None
-            frame = Frame_Handler.get_frame(grayscale=False, use_cached=True)
-            menu, menu_left, menu_top, menu_right, menu_bottom = self._get_upgrade_menu(frame, (x_sug, y_sug), sug_width, return_bounds=True)
-            
-            # Move ongoing upgrades out of view
-            if configs.START_FROM_MENU_TOP:
-                Input_Handler.swipe_up(x=x_sug, y1=y_sug, y2=0.15, duration=0, hold_end_time=100, inter_points=10)
-            else:
-                self._scroll_to_menu_bottom(menu_left, menu_right, menu_top, menu_bottom)
-            
-            # Find upgrade text
-            def locate_upgrade():
-                frame = Frame_Handler.get_frame(grayscale=False)
-                frame_gray = Frame_Handler.grayscale(frame)
-                x_sug, y_sug = Frame_Handler.locate(sug_template, frame, thresh=0.70, grayscale=False)
-                xys = Frame_Handler.batch_locate(templates, frame_gray, thresh=0.80, ref="lc")
-                for x, y in xys:
-                    if x is not None and y is not None and (y_sug is None or (y_sug is not None and y > y_sug)):
-                        section = Frame_Handler.crop(frame, menu_left, y-0.02, menu_right, y+0.02)
-                        sufficient_resources = not check_color((255, 136, 127), section, tol=10)
-                        if sufficient_resources:
-                            # Check that located upgrade name is left aligned
-                            if abs(x - menu_left) < 0.01:
-                                return x, y
-                            # Or if it is left aligned to "New" label
-                            new_x, new_y = Frame_Handler.locate(render_text("New", "CCBackBeat", 27, color=(13, 255, 13)), filter_color((13, 255, 13), section), thresh=0.70, grayscale=False, ref="rc")
-                            if new_x is not None and new_y is not None and abs(x - (menu_left + new_x/section.shape[1])) < 0.05:
-                                return x, y
-                return None, None
-            
-            x, y = self._scroll_locate_upgrade(
-                locate_upgrade,
-                menu_left,
-                menu_right,
-                menu_top,
-                menu_bottom,
-                dir="down" if configs.START_FROM_MENU_TOP else "up",
-            )
-            
-            if x is None or y is None: return None
-            Input_Handler.click(x, y)
-            time.sleep(0.5)
-            
-            # Get upgrade name
-            upgrade_name = self._get_upgrade_name()
-            
-            # Click confirm button
-            if not self._click_home_confirm(): return None
-            time.sleep(0.5)
-            return upgrade_name
+            names = list(upgrade_text)
+            np.random.shuffle(names)
+
+            if not self._click_home_lab(): return None
+            found = Upgrade_Panel.find(names, from_top=configs.START_FROM_MENU_TOP)
+            if found is None: return None
+            row, name = found
+            Upgrade_Panel.tap(row)
+            time.sleep(0.8)
+            return self._confirm_upgrade_dialog(name)
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:
             if configs.DEBUG: print("home_lab_specified_upgrade", e)
             return None
-    
+
     @require_exit()
     def home_lab_upgrade(self):
         if not Task_Handler.home_lab_priority_excluded():

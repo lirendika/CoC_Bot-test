@@ -45,19 +45,100 @@
       "screen": "'Welcome Back Chief!' popup on game start. The bot's click_exit (tap 0.99,0.99) dismisses it without opening Build; the 'okay' template only scores 0.63 here"
     },
     "coc_18.647_2026-11/home.webp": {
-      "screen": "Home village. Builder (0/7) and lab (1/2) counters moved from top-center to bottom-right above Build; get_home_builders still looks at the old spot, so the bot never recognises home (slash template still matches 0.95 at the new spot)"
+      "screen": "Home village. Builder (0/7) and lab (1/2) counters moved from top-center to bottom-right above Build; utils.read_counter reads them at HOME_BUILDER_COUNTER / HOME_LAB_COUNTER. Gold 9 388 101, elixir 13 935 650; the resource bars now fill from the icon leftwards (storage = amount / capacity; both capacities are ~25.75M (4 storages + Town Hall), fitted from the two home frames)",
+      "storage": {
+        "gold": 0.365,
+        "elixir": 0.541
+      }
     },
     "coc_18.647_2026-11/build_panel.webp": {
-      "screen": "Build button (or either counter) opens a right-side 'Buildings & Heroes' panel that replaces the old top builder menu. Tabs at the bottom: builders, research, crafting station, pets. Close with its X (0.983,0.031) or a tap outside"
+      "screen": "Build button (or either counter) opens a right-side 'Buildings & Heroes' panel that replaces the old top builder menu. Tabs at the bottom: builders, research, crafting station, pets. Close with its X (0.983,0.031) or a tap outside",
+      "panel": {
+        "tab": "builders",
+        "rows": [
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Laboratory",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Elixir Storage",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Multi-Gear Tower",
+            "affordable": true,
+            "new": true
+          }
+        ]
+      }
     },
     "coc_18.647_2026-11/upgrade_dialog_builders_busy.webp": {
-      "screen": "Building upgrade dialog with a discount (old price struck through, green tag). The 'confirm' template still matches 0.88 (bot threshold 0.85)"
+      "screen": "Building upgrade dialog with a discount (old price struck through, green tag). The 'confirm' template still matches 0.88 (bot threshold 0.85)",
+      "dialog": true
     },
     "coc_18.647_2026-11/research_panel.webp": {
-      "screen": "Research tab ('Army Upgrades') of the same right-side panel"
+      "screen": "Research tab ('Army Upgrades') of the same right-side panel",
+      "panel": {
+        "tab": "research",
+        "rows": [
+          {
+            "name": "Druid",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Siege Barracks",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Apprentice Warden",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Minion",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Witch",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Bat Spell",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Skeleton Spell",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Poison Spell",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Earthquake Spell",
+            "affordable": true,
+            "new": false
+          }
+        ]
+      }
     },
     "coc_18.647_2026-11/research_dialog.webp": {
-      "screen": "Research upgrade dialog, discounted"
+      "screen": "Research upgrade dialog, discounted",
+      "dialog": true
     },
     "coc_18.647_2026-11/wall_selected.webp": {
       "screen": "Wall action bar: Info, Select Row, Upgrade More, Upgrade (gold), Upgrade (elixir), and a blue Upgrade (Wall Ring x4). _wall_upgrade_buttons finds only the gold and elixir buttons (both 'white'); the Wall Ring button is not matched"
@@ -115,37 +196,317 @@
       "screen": "Village right after End Battle on the scouting screen (no troops deployed)"
     },
     "coc_18.647_2026-11/build_panel_scroll_0.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 0 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 0 of 8)",
+      "panel": {
+        "tab": "builders"
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_1.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 1 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 1 of 8)",
+      "panel": {
+        "tab": "builders"
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_2.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 2 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 2 of 8)",
+      "panel": {
+        "tab": "builders",
+        "rows": [
+          {
+            "name": "Giant Bomb",
+            "affordable": true,
+            "new": true
+          },
+          {
+            "name": "Seeking Air Mine",
+            "affordable": true,
+            "new": true
+          },
+          {
+            "name": "Archer Tower",
+            "affordable": true,
+            "new": true
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Archer Queen",
+            "affordable": false,
+            "new": false
+          },
+          {
+            "name": "Monolith",
+            "affordable": false,
+            "new": false
+          },
+          {
+            "name": "Workshop",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Barracks",
+            "affordable": true,
+            "new": false
+          }
+        ]
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_3.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 3 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 3 of 8)",
+      "panel": {
+        "tab": "builders",
+        "rows": [
+          {
+            "name": "Monolith",
+            "affordable": false,
+            "new": false
+          },
+          {
+            "name": "Workshop",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Barracks",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Clan Castle",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Blacksmith",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Army Camp",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Pet House",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Dark Elixir Storage",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Gold Storage",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          }
+        ]
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_4.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 4 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 4 of 8)",
+      "panel": {
+        "tab": "builders",
+        "rows": [
+          {
+            "name": "Gold Storage",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Wall",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Multi-Archer Tower",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Scattershot",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Inferno Tower",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "X-Bow",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Builder's Hut",
+            "affordable": true,
+            "new": false
+          }
+        ]
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_5.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 5 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 5 of 8)",
+      "panel": {
+        "tab": "builders"
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_6.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 6 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 6 of 8)",
+      "panel": {
+        "tab": "builders",
+        "rows": [
+          {
+            "name": "Bomb Tower",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Wizard Tower",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Mortar",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Spell Tower",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Inferno Artillery",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Bomb",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Hidden Tesla",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          }
+        ]
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_7.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 7 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 7 of 8)",
+      "panel": {
+        "tab": "builders",
+        "rows": [
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Crafting Station",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Giant Bomb",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Seeking Air Mine",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Air Bomb",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Spring Trap",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Bomb",
+            "affordable": true,
+            "new": false
+          },
+          {
+            "name": "Air Bomb",
+            "affordable": true,
+            "new": false
+          }
+        ]
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_8.webp": {
-      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 8 of 8)"
+      "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 8 of 8)",
+      "panel": {
+        "tab": "builders"
+      }
     },
     "coc_18.647_2026-11/tap_wall_row.webp": {
-      "screen": "After tapping 'Wall x 325' in the panel: a wall is selected in the village, the panel stays open and the wall bar switches to a two-row layout (Info / Select Row / Upgrade More, then gold / elixir / Wall Ring Upgrade). The wall templates don't match this layout"
+      "screen": "After tapping 'Wall x 325' in the panel: a wall is selected in the village, the panel stays open and the wall bar switches to a two-row layout (Info / Select Row / Upgrade More, then gold / elixir / Wall Ring Upgrade). The wall templates don't match this layout",
+      "panel": {
+        "tab": "builders"
+      }
     },
     "coc_18.647_2026-11/wall_selected_after_panel_close.webp": {
-      "screen": "Same wall still selected after closing the panel with its X: single-row wall bar again (wall_upgrade 0.96; wall_upgrade_more 0.86, under the bot's 0.90 threshold)"
+      "screen": "Same wall still selected after closing the panel with its X: single-row wall bar again. assets/upgrader/wall_upgrade_more.png is cropped from this frame (1.0 here, 0.993 on wall_selected); wall_upgrade 0.96"
     },
     "coc_18.647_2026-11/wall_upgrade_more_stepper.webp": {
       "screen": "Wall stepper after 'Upgrade More': Remove Wall -1 and Add Wall +10 disabled (salmon labels), Add Wall +1 enabled (white), gold/elixir Upgrade, Wall Ring. wall_add finds +1; _wall_upgrade_buttons finds gold and elixir as 'white'"
@@ -154,7 +515,36 @@
       "screen": "'Upgrade Walls' confirmation for 3150000 Gold with Cancel / Okay; the attacker 'okay' template matches 1.0. Cancelled while capturing, nothing spent"
     },
     "coc_18.647_2026-11/tap_hero_row.webp": {
-      "screen": "Tapping the Archer Queen row opens its upgrade dialog directly. The price (135 000 dark elixir, only 83 017 owned) is red, yet the Confirm button stays green and the 'confirm' template still matches 0.88: the bot must check the price colour itself. Closed without confirming"
+      "screen": "Tapping the Archer Queen row opens its upgrade dialog directly. The price (135 000 dark elixir, only 83 017 owned) is red, yet the Confirm button stays green and the 'confirm' template still matches 0.88: Upgrader._confirm_upgrade_dialog checks the price colour itself. Closed without confirming",
+      "dialog": true
+    },
+    "coc_18.647_2026-11/popup_welcome_back_attacked.webp": {
+      "screen": "'Welcome Back Chief!' popup after the village was attacked (attacker name, loot lost, Okay at ~(982,897)). click_exit (tap 0.99,0.99) dismisses it too"
+    },
+    "coc_18.647_2026-11/research_dialog_siege_barracks.webp": {
+      "screen": "Research dialog of the Siege Barracks siege machine (Hammer of Fighting). The research tab lists only lab research: this 'Siege Barracks' is the siege machine, not the building",
+      "dialog": true
+    },
+    "coc_18.647_2026-11/crafting_station_dialog.webp": {
+      "screen": "Tapping the Crafting Station row (builders tab, 'Hot Candle Duration') opens the crafted-module upgrade screen: per-stat Upgrade buttons and a Confirm at ~(1594,630), not the standard dialog's Confirm (template 0.26). home_random_upgrade excludes this row",
+      "dialog": true
+    },
+    "coc_18.647_2026-11/popup_builders_busy_gems.webp": {
+      "screen": "Confirm pressed on a wall's upgrade dialog with every builder busy (0/7): 'All builders are busy! Complete the previous building and free up a builder?' with a 104-gem button mid-screen. Nothing is spent until that button is pressed; one corner tap (click_exit) closes the popup. assets/upgrader/builders_busy.png is its title (1.0 here, <=0.39 on every other frame); Upgrader._builders_busy closes it. The popup dims the dialog behind, so dialog_open reads False, while its Confirm still matches 0.879"
+    },
+    "coc_18.647_2026-11/home_2.webp": {
+      "screen": "Home village after a raid: gold 9 433 574, elixir 10 942 467, builders 0/7, lab 0/2 (storage = amount / capacity; both capacities are ~25.75M (4 storages + Town Hall), fitted from the two home frames)",
+      "storage": {
+        "gold": 0.366,
+        "elixir": 0.425
+      }
+    },
+    "coc_18.647_2026-11/home_zoomed_out.webp": {
+      "screen": "Home village zoomed fully out (as run_home_base leaves it), dark event scenery behind the see-through bar tracks: gold 15 678 283, elixir 18 384 948, builders 0/7, lab 0/2",
+      "storage": {
+        "gold": 0.609,
+        "elixir": 0.714
+      }
     }
   }
 }
