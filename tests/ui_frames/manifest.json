@@ -1,20 +1,118 @@
 {
   "_about": "Reference screenshots (1920x1080, lossless WebP = pixel-exact) for testing the bot offline: scripts/ui_probe.py runs the bot's real detection code on a frame, scripts/loot_eval.py scores the loot reader on every frame with a 'loot' entry. Folders are named after the CoC UI they show; capture new ones with scripts/capture_frame.py and describe them here.",
   "frames": {
-    "old_ui_2026-07/attack_1.webp": {"screen": "Attack scouting screen, pre-update UI", "loot": [1479872, 1133772, 9789]},
-    "old_ui_2026-07/attack_2.webp": {"screen": "Attack scouting screen, pre-update UI", "loot": [2205173, 2205396, 17511]},
-    "old_ui_2026-07/attack_3.webp": {"screen": "Attack scouting screen, pre-update UI, candy scenery", "loot": [975611, 974883, 12105]},
-    "old_ui_2026-07/attack_4.webp": {"screen": "Attack scouting screen, pre-update UI", "loot": [795673, 675123, 11974]},
-    "old_ui_2026-07/attack_5.webp": {"screen": "Attack scouting screen, pre-update UI", "loot": [669012, 983292, 11722]},
-
-    "coc_18.647_2026-11/popup_welcome_back.webp": {"screen": "'Welcome Back Chief!' popup on game start. The bot's click_exit (tap 0.99,0.99) dismisses it without opening Build; the 'okay' template only scores 0.63 here"},
-    "coc_18.647_2026-11/home.webp": {"screen": "Home village. Builder (0/7) and lab (1/2) counters moved from top-center to bottom-right above Build; get_home_builders still looks at the old spot, so the bot never recognises home (slash template still matches 0.95 at the new spot)"},
-    "coc_18.647_2026-11/build_panel.webp": {"screen": "Build button (or either counter) opens a right-side 'Buildings & Heroes' panel that replaces the old top builder menu. Tabs at the bottom: builders, research, crafting station, pets. Close with its X (0.983,0.031) or a tap outside"},
-    "coc_18.647_2026-11/upgrade_dialog_builders_busy.webp": {"screen": "Building upgrade dialog with a discount (old price struck through, green tag). The 'confirm' template still matches 0.88 (bot threshold 0.85)"},
-    "coc_18.647_2026-11/research_panel.webp": {"screen": "Research tab ('Army Upgrades') of the same right-side panel"},
-    "coc_18.647_2026-11/research_dialog.webp": {"screen": "Research upgrade dialog, discounted"},
-    "coc_18.647_2026-11/wall_selected.webp": {"screen": "Wall action bar: Info, Select Row, Upgrade More, Upgrade (gold), Upgrade (elixir), and a blue Upgrade (Wall Ring x4). _wall_upgrade_buttons finds only the gold and elixir buttons (both 'white'); the Wall Ring button is not matched"},
-    "coc_18.647_2026-11/battle_menu.webp": {"screen": "Battle menu: 'Battle - Find a Match' (1600 gold) and 'Ranked Battle' cards; find_a_match template matches 1.0"},
-    "coc_18.647_2026-11/army_screen.webp": {"screen": "'My Army' window opened by Find a Match; the gold is only spent on Attack! (confirm_attack template matches 0.98)"}
+    "old_ui_2026-07/attack_1.webp": {
+      "screen": "Attack scouting screen, pre-update UI",
+      "loot": [
+        1479872,
+        1133772,
+        9789
+      ]
+    },
+    "old_ui_2026-07/attack_2.webp": {
+      "screen": "Attack scouting screen, pre-update UI",
+      "loot": [
+        2205173,
+        2205396,
+        17511
+      ]
+    },
+    "old_ui_2026-07/attack_3.webp": {
+      "screen": "Attack scouting screen, pre-update UI, candy scenery",
+      "loot": [
+        975611,
+        974883,
+        12105
+      ]
+    },
+    "old_ui_2026-07/attack_4.webp": {
+      "screen": "Attack scouting screen, pre-update UI",
+      "loot": [
+        795673,
+        675123,
+        11974
+      ]
+    },
+    "old_ui_2026-07/attack_5.webp": {
+      "screen": "Attack scouting screen, pre-update UI",
+      "loot": [
+        669012,
+        983292,
+        11722
+      ]
+    },
+    "coc_18.647_2026-11/popup_welcome_back.webp": {
+      "screen": "'Welcome Back Chief!' popup on game start. The bot's click_exit (tap 0.99,0.99) dismisses it without opening Build; the 'okay' template only scores 0.63 here"
+    },
+    "coc_18.647_2026-11/home.webp": {
+      "screen": "Home village. Builder (0/7) and lab (1/2) counters moved from top-center to bottom-right above Build; get_home_builders still looks at the old spot, so the bot never recognises home (slash template still matches 0.95 at the new spot)"
+    },
+    "coc_18.647_2026-11/build_panel.webp": {
+      "screen": "Build button (or either counter) opens a right-side 'Buildings & Heroes' panel that replaces the old top builder menu. Tabs at the bottom: builders, research, crafting station, pets. Close with its X (0.983,0.031) or a tap outside"
+    },
+    "coc_18.647_2026-11/upgrade_dialog_builders_busy.webp": {
+      "screen": "Building upgrade dialog with a discount (old price struck through, green tag). The 'confirm' template still matches 0.88 (bot threshold 0.85)"
+    },
+    "coc_18.647_2026-11/research_panel.webp": {
+      "screen": "Research tab ('Army Upgrades') of the same right-side panel"
+    },
+    "coc_18.647_2026-11/research_dialog.webp": {
+      "screen": "Research upgrade dialog, discounted"
+    },
+    "coc_18.647_2026-11/wall_selected.webp": {
+      "screen": "Wall action bar: Info, Select Row, Upgrade More, Upgrade (gold), Upgrade (elixir), and a blue Upgrade (Wall Ring x4). _wall_upgrade_buttons finds only the gold and elixir buttons (both 'white'); the Wall Ring button is not matched"
+    },
+    "coc_18.647_2026-11/battle_menu.webp": {
+      "screen": "Battle menu: 'Battle - Find a Match' (1600 gold) and 'Ranked Battle' cards; find_a_match template matches 1.0"
+    },
+    "coc_18.647_2026-11/army_screen.webp": {
+      "screen": "'My Army' window opened by Find a Match; the gold is only spent on Attack! (confirm_attack template matches 0.98)"
+    },
+    "coc_18.647_2026-11/attack_1.webp": {
+      "screen": "Attack scouting screen, post-update UI, candy scenery, enemy without clan",
+      "loot": [
+        48295,
+        64885,
+        4660
+      ]
+    },
+    "coc_18.647_2026-11/attack_2.webp": {
+      "screen": "Attack scouting screen, post-update UI, jungle scenery",
+      "loot": [
+        259163,
+        232320,
+        4278
+      ]
+    },
+    "coc_18.647_2026-11/attack_3.webp": {
+      "screen": "Attack scouting screen, post-update UI, forest scenery",
+      "loot": [
+        227937,
+        464917,
+        5469
+      ]
+    },
+    "coc_18.647_2026-11/attack_4.webp": {
+      "screen": "Attack scouting screen, post-update UI, 7-digit gold and elixir",
+      "loot": [
+        1138623,
+        1178717,
+        3952
+      ]
+    },
+    "coc_18.647_2026-11/attack_5.webp": {
+      "screen": "Attack scouting screen, post-update UI",
+      "loot": [
+        868110,
+        872449,
+        10042
+      ]
+    },
+    "coc_18.647_2026-11/attack_card_selected.webp": {
+      "screen": "Scouting screen with the first troop card selected, so the red no-deploy border is drawn (for redline / spam-event work)"
+    },
+    "coc_18.647_2026-11/after_end_battle.webp": {
+      "screen": "Village right after End Battle on the scouting screen (no troops deployed)"
+    }
   }
 }
