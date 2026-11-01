@@ -35,6 +35,16 @@ class Attacker:
             timeout=timeout
         )
 
+    def _locate_return_home(self):
+        """The "Return Home" button of a battle result screen, or (None, None).
+        Multiplayer results since CoC 18.647 (2026-11) show a narrower button
+        with thinner text than practice results; each scores ~0.74 on the
+        other's template, so both are tried."""
+        for name in ("return_home_battle", "return_home"):
+            x, y = Frame_Handler.locate(self.assets[name], thresh=0.85, use_cached=True)
+            if x is not None and y is not None: return x, y
+        return None, None
+
     def wait_battle_end(self, timeout=300, poll=2):
         """
         Wait for the battle to finish naturally, then click "Return Home" —
@@ -48,10 +58,11 @@ class Attacker:
         while time.time() - start < timeout:
             Frame_Handler.get_frame()
             # "Return Home" appears on the battle result screen
-            x, y = Frame_Handler.locate(self.assets["return_home"], thresh=0.85, use_cached=True)
+            x, y = self._locate_return_home()
             if x is not None and y is not None:
                 Input_Handler.click(x, y)
                 time.sleep(3)
+                dismiss_rate_dialog()
                 return True
             # Dismiss intermediate popups (e.g. star bonus / achievements)
             x, y = Frame_Handler.locate(self.assets["okay"], thresh=0.9, use_cached=True)
@@ -1634,7 +1645,9 @@ class Attacker:
                     get_home_builders(1)
                     break
                 except (KeyboardInterrupt, SystemExit): raise
-                except: pass
+                except:
+                    # A menu or dialog left open dims the counters
+                    if not dismiss_rate_dialog(): Input_Handler.click_exit()
             if time.time() - start_time >= timeout: return
 
             # No point farming when both storages are already full — unless the

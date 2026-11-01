@@ -1,10 +1,12 @@
-"""Check Upgrade_Panel against the reference frames.
+"""Check the bot's screen readers (upgrade panel, storage bars, battle
+result) against the reference frames.
 
 Every frame's manifest entry says whether the upgrade panel is open (and on
 which tab), whether an upgrade dialog is up, and for hand-checked panel
-frames the name/affordable/new state of each purchasable row, and for home
-frames how full the gold and elixir storages are. Exit 0 when everything
-agrees:
+frames the name/affordable/new state of each purchasable row, for home
+frames how full the gold and elixir storages are, and where a battle result's
+"Return Home" button and the rate dialog's LATER are (no other frame may show
+them). Exit 0 when everything agrees:
 
     .venv/bin/python scripts/panel_eval.py
 """
@@ -20,8 +22,11 @@ from ui_probe import load_frame, use_frame  # noqa: E402
 
 
 def main():
+    import attacker
     import utils
     from utils import Upgrade_Panel as P
+
+    A = attacker.Attacker()
 
     manifest = json.loads((FRAMES / "manifest.json").read_text())["frames"]
     names = sorted({r["name"] for info in manifest.values() for r in info.get("panel", {}).get("rows", [])}
@@ -48,8 +53,22 @@ def main():
         if panel and "rows" in panel and len(P.rows(frame)) != len(panel["rows"]):
             errors += 1
             print(f"XX {rel}: {len(P.rows(frame))} rows parsed, expected {len(panel['rows'])}")
+        use_frame(frame)
+        checks += 1
+        got_rh = A._locate_return_home()
+        want_rh = info.get("return_home")
+        if (got_rh[0] is None) != (want_rh is None) or (
+                want_rh and max(abs(g - w) for g, w in zip(got_rh, want_rh)) > 0.01):
+            errors += 1
+            print(f"XX {rel}: Return Home at {got_rh}, expected {want_rh}")
+        checks += 1
+        later = utils.Frame_Handler.locate(utils.Asset_Manager.misc_assets["dialog_later"], thresh=0.9, use_cached=True)
+        want_later = info.get("dialog_later")
+        if (later[0] is None) != (want_later is None) or (
+                want_later and max(abs(g - w) for g, w in zip(later, want_later)) > 0.01):
+            errors += 1
+            print(f"XX {rel}: rate dialog LATER at {later}, expected {want_later}")
         if "storage" in info:
-            use_frame(frame)
             levels = utils.get_storage_fill_levels()
             for res, want_level in info["storage"].items():
                 checks += 1

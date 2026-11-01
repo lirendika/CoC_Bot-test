@@ -545,6 +545,30 @@
         "gold": 0.609,
         "elixir": 0.714
       }
+    },
+    "coc_18.647_2026-11/practice_result.webp": {
+      "screen": "Practice battle result (Victory 100%): 'Play Again' and 'Return Home' side by side mid-screen; the old return_home template matches this button 0.997 (return_home_battle only 0.74)",
+      "return_home": [
+        0.505,
+        0.746
+      ]
+    },
+    "coc_18.647_2026-11/replay_end.webp": {
+      "screen": "End of a replay from the Battle Log: 'Play Again' bottom right, a portrait 'Return Home' bottom left (not the result screen's button)"
+    },
+    "coc_18.647_2026-11/rate_dialog.webp": {
+      "screen": "Google Play's 'Rate Clash of Clans' dialog [LATER] [NEVER] [REVIEW] over the village after a 3-star win. Taps outside it do nothing, so click_exit can't close it; utils.dismiss_rate_dialog taps LATER (assets/misc/dialog_later.png, 1.0 here, <=0.48 elsewhere)",
+      "dialog_later": [
+        0.289,
+        0.594
+      ]
+    },
+    "coc_18.647_2026-11/battle_result.webp": {
+      "screen": "Multiplayer battle result (Victory 100%, +347 893 gold / +324 310 elixir / +10 045 dark, '100% Bonus' star-bonus panel) with one 'Return Home' button bottom centre. That button is narrower with thinner text than the practice result's: assets/attacker/return_home_battle.png is cropped from this frame (1.0 here, 0.95 on the other two multiplayer results seen, 0.74 on practice)",
+      "return_home": [
+        0.501,
+        0.863
+      ]
     }
   }
 }
