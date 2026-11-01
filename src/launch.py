@@ -1,12 +1,37 @@
+def alert_unreachable():
+    """Tell the user why the bot stopped — without it the dashboard just sat
+    there looking idle, with the failure buried in a log file."""
+    import sys, subprocess
+    from utils import ADB_Manager
+    if ADB_Manager.last_error == "adb executable not found":
+        msg = ("The adb program was not found on this computer.\n\n"
+               "Install Android platform-tools (Terminal: brew install android-platform-tools) "
+               "or set ADB_ABS_DIR in src/configs.py, then start CoC Bot again.")
+    else:
+        msg = ("Can't reach BlueStacks over ADB.\n\n"
+               "Open BlueStacks, wait until it has fully booted to the home screen, "
+               "check Settings > Advanced > Android Debug Bridge is ON, "
+               "then close this CoC Bot window and start it again.")
+    if sys.platform == "darwin":
+        subprocess.Popen(["osascript", "-e", f'display alert "CoC Bot" message "{msg}" as warning'],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif sys.platform == "win32":
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, msg, "CoC Bot", 0x30)
+
 def launch_proc(args):
     from log import enable_logging
     from utils import parse_args, init_instance
     from coc_bot import CoC_Bot
-    
+
     parse_args(args.debug, args.id, args.gui, args.gui_port)
     init_instance(args.id)
     enable_logging(args.id)
-    bot = CoC_Bot()
+    try:
+        bot = CoC_Bot()
+    except AssertionError as e:
+        if "ADB" in str(e): alert_unreachable()
+        raise
     bot.run()
 
 def cmd_launch(args):

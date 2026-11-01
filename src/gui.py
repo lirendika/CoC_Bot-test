@@ -43,8 +43,24 @@ def run_gui(server_port, pipe, debug=False):
         except Exception:
             pass # cosmetic only
 
+    def bring_to_front():
+        # Started by the desktop app in the background, macOS doesn't activate
+        # the window, so it opened hidden behind whatever was in front
+        if sys.platform != "darwin": return
+        try:
+            from AppKit import NSApplication
+            from PyObjCTools import AppHelper
+            def raise_window():
+                NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+                window.native.makeKeyAndOrderFront_(None)
+                window.native.orderFrontRegardless()
+            AppHelper.callAfter(raise_window)
+        except Exception:
+            pass
+
     set_dock_icon()
     window.events.closed += on_closed
+    window.events.shown += bring_to_front
     window.events.loaded += set_aspect_ratio
     webview.start(debug=debug)
 

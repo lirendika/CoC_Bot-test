@@ -359,7 +359,7 @@ def update_status(status):
     if (gui_port := TEMP_CACHE.get("gui_port")) is not None:
         try:
             requests.post(
-                f"http://localhost:{gui_port}/status",
+                f"http://localhost:{gui_port}/{INSTANCE_ID}/status",
                 json={"status": status},
                 timeout=(1, 2)
             )
@@ -1269,6 +1269,29 @@ class ADB_Manager:
     _adbutils_device : AdbDevice | None = None
     _minitouch_device : MNTDevice | None = None
     _uiautomator_device : u2.Device | None = None
+    last_error = None
+
+    @staticmethod
+    def ensure_adb_on_path():
+        """Make the adb executable findable. Apps opened from Finder/Dock get a
+        minimal PATH without Homebrew, so an installed adb looked missing and
+        every connect attempt failed silently. Returns False if adb is absent."""
+        import os, shutil
+        if ADB_ABS_DIR != "" and ADB_ABS_DIR not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = ADB_ABS_DIR + os.pathsep + os.environ.get("PATH", "")
+        if shutil.which("adb"): return True
+        candidates = [
+            "/opt/homebrew/bin",                                      # Homebrew (Apple Silicon)
+            "/usr/local/bin",                                         # Homebrew (Intel)
+            os.path.expanduser("~/Library/Android/sdk/platform-tools"),
+            os.path.expanduser("~/Android/Sdk/platform-tools"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk", "platform-tools"),
+        ]
+        for d in candidates:
+            if d and shutil.which("adb", path=d):
+                os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
+                return True
+        return False
 
     @classmethod
     def is_connected(cls):
@@ -1292,7 +1315,7 @@ class ADB_Manager:
         from pyminitouch import MNTDevice
         
         if addr is None: addr = ADB_ADDRESS
-        if ADB_ABS_DIR != "": os.environ["PATH"] = ADB_ABS_DIR + os.pathsep + os.environ["PATH"]
+        cls.ensure_adb_on_path()
         if cls.is_connected(): return
         subprocess.run(["adb", "start-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         res = adbutils.adb.connect(addr)
@@ -1315,17 +1338,26 @@ class ADB_Manager:
     @classmethod
     def connect(cls, timeout=60):
         import time
+        if not cls.ensure_adb_on_path():
+            # No point retrying for a minute — the executable itself is missing
+            cls.last_error = "adb executable not found"
+            print("Failed to connect to ADB: adb executable not found. Install Android "
+                  "platform-tools (brew install android-platform-tools) or set ADB_ABS_DIR in configs.py")
+            return False
         start = time.time()
         while time.time() - start < timeout:
             try:
                 cls.connect_once()
+                cls.last_error = None
                 if configs.DEBUG: print("Connected to ADB.")
                 return True
             except (KeyboardInterrupt, SystemExit): raise
             except Exception as e:
+                cls.last_error = str(e)
                 if configs.DEBUG: print("connect_adb", e)
             time.sleep(0.5)
-        if configs.DEBUG: print("Failed to connect to ADB.")
+        # Always say why — this used to be silent unless DEBUG was on
+        print(f"Failed to connect to ADB: {cls.last_error}")
         return False
 
     @classproperty

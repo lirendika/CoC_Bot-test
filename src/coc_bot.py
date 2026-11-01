@@ -5,8 +5,11 @@ from attacker import Attacker
 
 class CoC_Bot:
     def __init__(self):
-        BlueStacks_Manager.init()
         assert ADB_Manager.connect(60), "Failed to connect to ADB"
+        # Take ownership of BlueStacks (shut it down on exit) only once we're
+        # connected — registering first meant a failed connect (BlueStacks
+        # still booting, ADB offline) force-killed the user's emulator on exit
+        BlueStacks_Manager.init()
         self.upgrader = Upgrader()
         self.attacker = Attacker()
     

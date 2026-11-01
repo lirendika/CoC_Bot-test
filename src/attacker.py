@@ -1565,7 +1565,18 @@ class Attacker:
         bottoms = [c[1] + c[3] for c in keep]
         keep = max(([c for c, bb in zip(keep, bottoms) if abs(bb - b) <= tol] for b in bottoms),
                    key=len)
-        keep.sort()
+        # ...and one top line: a shorter bright shape (a sawtooth roof) can
+        # share the baseline by chance and was read as extra digits
+        top_line = float(np.median([c[1] for c in keep]))
+        keep = sorted(c for c in keep if abs(c[1] - top_line) <= tol)
+        # A number's glyphs sit close together (a thousands gap is ~half a
+        # digit); keep the biggest cluster, dropping far-off bright clutter
+        clusters = [[keep[0]]]
+        for c in keep[1:]:
+            prev = clusters[-1][-1]
+            if c[0] - (prev[0] + prev[2]) > 1.5 * ref_h: clusters.append([c])
+            else: clusters[-1].append(c)
+        keep = max(clusters, key=len)
 
         widths = [c[2] for c in keep]
         unit_w = float(np.median([w for w in widths if w > 0.45 * ref_h] or widths))
@@ -1583,23 +1594,65 @@ class Attacker:
         if not digits: return None
         return int("".join(str(d) for d in digits))
 
-    # y-bands of the three "Available Loot" rows, and each one's plausible range
-    LOOT_ROWS = {
-        "gold":   (0.136, 0.182, 100, 3_000_000),
-        "elixir": (0.190, 0.236, 100, 3_000_000),
-        "dark":   (0.243, 0.289, 1, 500_000),
+    # plausible range of each "Available Loot" value (outside = misread)
+    LOOT_RANGES = {
+        "gold":   (100, 3_000_000),
+        "elixir": (100, 3_000_000),
+        "dark":   (1, 500_000),
     }
+
+    def _loot_row_bands(self, frame):
+        """Normalized (y0, y1) band of each loot row, anchored on the coloured
+        gold-coin and elixir-drop icons. Fixed bands broke when a game update
+        moved the panel up ~10px (clipping the digits' tops: 723100 read as
+        783100); the icons also absorb layout shifts like an enemy without a
+        clan. Dark elixir sits one row-pitch below elixir. None if not found."""
+        import cv2, numpy as np
+        h, w = frame.shape[:2]
+        top = int(h * 0.06)
+        col = frame[top:int(h * 0.40), int(w * 0.012):int(w * 0.06)]
+        hsv = cv2.cvtColor(col, cv2.COLOR_RGB2HSV)
+
+        def runs(mask):
+            """(mass, center_y) of each vertical run of icon-coloured rows."""
+            rows = mask.sum(axis=1)
+            out, start = [], None
+            for y, v in enumerate(np.append(rows, 0)):
+                if v >= 3 and start is None: start = y
+                elif v < 3 and start is not None:
+                    out.append((rows[start:y].sum(), top + (start + y - 1) / 2))
+                    start = None
+            return [r for r in out if r[0] >= 200]   # icons are solid blobs
+
+        H, S, V = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+        # Anchor on the elixir drop (magenta is rare in scenery), then take the
+        # gold coin directly above it — a big gold building under the panel
+        # can outweigh the coin, so "most gold" alone picked the wrong blob
+        elixirs = runs((H >= 135) & (H <= 170) & (S > 100) & (V > 120))
+        if not elixirs: return None
+        elixir = max(elixirs)[1]
+        golds = [r for r in runs((H >= 15) & (H <= 30) & (S > 150) & (V > 150))
+                 if 30 < elixir - r[1] < 110]
+        if not golds: return None
+        gold = max(golds)[1]
+        pitch = elixir - gold
+        # half-height stays clear of the neighbouring rows' digits
+        half = 0.42 * pitch
+        centers = {"gold": gold, "elixir": elixir, "dark": elixir + pitch}
+        return {k: (max(0.0, (c - half) / h), min(1.0, (c + half) / h)) for k, c in centers.items()}
 
     def _read_available_loot(self):
         """Read the enemy's "Available Loot" panel (top-left of the battle
         screen). Returns {"gold": int, "elixir": int, "dark": int} or None.
 
-        Validated 15/15 on the debug frames (all three resources, 4-7 digit
-        values, candy/forest/path scenery), stable across v_min 200-240 and
-        s_max 60-120."""
-        Frame_Handler.get_frame()
+        Validated on the pre-update debug frames (15/15) and on post-update
+        (2026-11) attack screens, across forest/candy/path scenery."""
+        frame = Frame_Handler.get_frame(grayscale=False)
+        bands = self._loot_row_bands(frame)
+        if bands is None: return None
         loot = {}
-        for name, (y0, y1, lo, hi) in self.LOOT_ROWS.items():
+        for name, (y0, y1) in bands.items():
+            lo, hi = self.LOOT_RANGES[name]
             crop = Frame_Handler.get_frame_section(0.02, y0, 0.21, y1, grayscale=False, use_cached=True)
             value = self._read_loot_row(crop)
             # Dark elixir is absent on low town halls — treat only gold/elixir
