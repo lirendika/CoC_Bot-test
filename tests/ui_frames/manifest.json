@@ -569,6 +569,12 @@
         0.501,
         0.863
       ]
+    },
+    "coc_18.647_2026-11/build_panel_apprentice_working.webp": {
+      "screen": "Builders tab with every builder busy; the goblin icon on the first Ricochet Cannon row is the Builder's Apprentice working on it. The old assistant_available / assign_assistant / confirm_assistant templates match nothing on the new UI (<=0.56), so the apprentice and lab assistant flows do nothing until they are re-captured while one is free",
+      "panel": {
+        "tab": "builders"
+      }
     }
   }
 }
