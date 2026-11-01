@@ -441,31 +441,48 @@ def to_home_base(ref_cache=False):
             time.sleep(2)
             return
 
-def get_home_builders(timeout=60, return_amount=True, raise_exception=True, use_cached_frame=False):
-    import time, cv2
-    
+# "free/total" counters on the home village (CoC 18.647, 2026-11): the update
+# moved them from the top-center to the bottom-right, above the Build button
+HOME_BUILDER_COUNTER = (0.882, 0.745, 0.935, 0.792)
+HOME_LAB_COUNTER = (0.935, 0.745, 0.985, 0.792)
+
+def read_counter(region, use_cached_frame=False, debug_name="counter"):
+    """Read a "free/total" counter such as the builders or research one.
+    Returns (confidence, free, total): how well the slash template matches
+    (< 0.9 means the counter isn't on screen, e.g. a menu covers it) and the
+    numbers either side of it, read glyph by glyph (None if unreadable)."""
+    import cv2
+    color = Frame_Handler.get_frame_section(*region, grayscale=False, use_cached=use_cached_frame)
+    section = Frame_Handler.high_contrast(color)
+    if configs.DEBUG: Frame_Handler.save_frame(section, f"debug/{debug_name}.png")
+    slash = cv2.cvtColor(Asset_Manager.misc_assets["slash"], cv2.COLOR_RGB2GRAY)
+    _, conf, _, (sx, _) = cv2.minMaxLoc(cv2.matchTemplate(section, slash, cv2.TM_CCOEFF_NORMED))
+    if conf < 0.9: return conf, None, None   # no counter here: nothing to read
+    free = Digit_Reader.read(color[:, :sx])
+    total = Digit_Reader.read(color[:, sx + slash.shape[1]:])
+    return conf, free, total
+
+def _get_free_builders(region, name, timeout, return_amount, raise_exception, use_cached_frame):
+    import time
+
     start = time.time()
     while True:
         try:
-            section = Frame_Handler.get_frame_section(0.49, 0.04, -0.455, 0.08, high_contrast=True, use_cached=use_cached_frame)
-            if configs.DEBUG: Frame_Handler.save_frame(section, "debug/home_builders.png")
-            
-            slash = cv2.cvtColor(Asset_Manager.misc_assets["slash"], cv2.COLOR_RGB2GRAY)
-            res = cv2.matchTemplate(section, slash, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, _ = cv2.minMaxLoc(res)
-            if raise_exception and max_val < 0.9: raise Exception("Slash not found")
-            
-            if not return_amount: return max_val >= 0.9
-            
-            text = fix_digits(''.join(OCR_Handler.get_text(section)).replace(' ', '').replace('/', ''))
-            available = int(text[0])
-            return available
+            conf, free, _ = read_counter(region, use_cached_frame=use_cached_frame, debug_name=name)
+            if raise_exception and conf < 0.9: raise Exception("Slash not found")
+            if not return_amount: return conf >= 0.9
+            if free is None: raise Exception("Counter digits not readable")
+            return free
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:
-            if configs.DEBUG: print("get_home_builders", e)
+            if configs.DEBUG: print(name, e)
         time.sleep(0.1)
         if time.time() > start + timeout: break
-    raise Exception("Failed to get home builders")
+    raise Exception(f"Failed to {name.replace('_', ' ')}")
+
+def get_home_builders(timeout=60, return_amount=True, raise_exception=True, use_cached_frame=False):
+    return _get_free_builders(HOME_BUILDER_COUNTER, "get_home_builders",
+                              timeout, return_amount, raise_exception, use_cached_frame)
 
 def start_coc(timeout=60, force=True):
     import time
@@ -1688,6 +1705,112 @@ class Frame_Handler:
         for template in templates:
             threads.append(cls.pool.submit(cls.locate, template, frame, grayscale, thresh, ref, null_val, return_confidence, return_all))
         return [thread.result() for thread in threads]
+
+class Digit_Reader:
+    """Read on-screen numbers by matching each glyph against digits rendered
+    in the game font. An OCR engine (LLM or easyocr) routinely drops a digit
+    from long numbers; the font is fixed and the digits are bright, so
+    per-glyph template matching is both exact and deterministic."""
+
+    GLYPH_CANVAS = (44, 60)   # w, h every digit box is normalised into
+    _templates = None
+
+    @classmethod
+    def norm_glyph(cls, mask):
+        """Fit a binary glyph into the fixed canvas, preserving aspect ratio."""
+        import cv2, numpy as np
+        cw, ch = cls.GLYPH_CANVAS
+        ys, xs = np.where(mask)
+        if len(xs) == 0: return np.zeros((ch, cw), np.uint8)
+        m = mask[ys.min():ys.max() + 1, xs.min():xs.max() + 1].astype(np.uint8)
+        s = min(cw / m.shape[1], ch / m.shape[0])
+        nw, nh = max(1, int(round(m.shape[1] * s))), max(1, int(round(m.shape[0] * s)))
+        m = cv2.resize(m, (nw, nh), interpolation=cv2.INTER_AREA)
+        out = np.zeros((ch, cw), np.uint8)
+        y0, x0 = (ch - nh) // 2, (cw - nw) // 2
+        out[y0:y0 + nh, x0:x0 + nw] = (m > 0)
+        return out
+
+    @classmethod
+    def templates(cls):
+        if cls._templates is None:
+            cls._templates = {
+                d: cls.norm_glyph(Frame_Handler.grayscale(render_text(str(d), "SupercellMagic", 100)) >= 128)
+                for d in range(10)
+            }
+        return cls._templates
+
+    @classmethod
+    def match(cls, box):
+        """(digit, IoU) of the best-matching digit for a binary glyph box."""
+        import numpy as np
+        n = cls.norm_glyph(box)
+        best, best_d = -1.0, None
+        for d, t in cls.templates().items():
+            union = np.logical_or(n, t).sum()
+            iou = np.logical_and(n, t).sum() / union if union else 0.0
+            if iou > best: best, best_d = iou, d
+        return best_d, best
+
+    @classmethod
+    def read(cls, crop_rgb, v_min=225, s_max=90):
+        """Read the number shown in an RGB crop as an int, or None."""
+        import cv2, numpy as np
+
+        if crop_rgb.size == 0 or min(crop_rgb.shape[:2]) < 3: return None
+
+        # The digits are bright and near-white; resource icons and sandy
+        # terrain are clearly coloured. Requiring low saturation drops them
+        # without blanking a region (blanking used to swallow leading digits).
+        hsv = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2HSV)
+        white = ((hsv[..., 2] >= v_min) & (hsv[..., 1] <= s_max)).astype(np.uint8)
+        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8))
+
+        n, lab, st, _ = cv2.connectedComponentsWithStats(white, 8)
+        if n <= 1: return None
+        comps = [(st[i, 0], st[i, 1], st[i, 2], st[i, 3], st[i, 4], i) for i in range(1, n)]
+        hmax = max(c[3] for c in comps)
+        ref_h = float(np.median([c[3] for c in comps if c[3] >= 0.55 * hmax]))
+        keep = [c for c in comps
+                if 0.6 * ref_h <= c[3] <= 1.35 * ref_h    # digit-height band
+                and c[4] >= 0.12 * c[2] * c[3]            # solid enough
+                and c[2] <= 6 * ref_h]                    # not a long streak
+        if not keep: return None
+
+        # Digits share one baseline; whatever else survived (an icon highlight,
+        # a bright leaf) sits off it — keep the largest aligned group.
+        tol = max(3, 0.14 * ref_h)
+        bottoms = [c[1] + c[3] for c in keep]
+        keep = max(([c for c, bb in zip(keep, bottoms) if abs(bb - b) <= tol] for b in bottoms),
+                   key=len)
+        # ...and one top line: a shorter bright shape (a sawtooth roof) can
+        # share the baseline by chance and was read as extra digits
+        top_line = float(np.median([c[1] for c in keep]))
+        keep = sorted(c for c in keep if abs(c[1] - top_line) <= tol)
+        # A number's glyphs sit close together (a thousands gap is ~half a
+        # digit); keep the biggest cluster, dropping far-off bright clutter
+        clusters = [[keep[0]]]
+        for c in keep[1:]:
+            prev = clusters[-1][-1]
+            if c[0] - (prev[0] + prev[2]) > 1.5 * ref_h: clusters.append([c])
+            else: clusters[-1].append(c)
+        keep = max(clusters, key=len)
+
+        widths = [c[2] for c in keep]
+        unit_w = float(np.median([w for w in widths if w > 0.45 * ref_h] or widths))
+
+        digits = []
+        for x, y, w, h, area, i in keep:
+            blob = (lab[y:y + h, x:x + w] == i)
+            k = max(1, int(round(w / unit_w))) if unit_w > 0 else 1
+            if k == 1:
+                digits.append(cls.match(blob)[0])
+            else:
+                step = w / k   # merged glyphs (e.g. "00"): cut into equal slices
+                for j in range(k):
+                    digits.append(cls.match(blob[:, int(j * step):int((j + 1) * step)])[0])
+        if not digits: return None
+        return int("".join(str(d) for d in digits))
 
 class Dev_Tools:
     @classmethod

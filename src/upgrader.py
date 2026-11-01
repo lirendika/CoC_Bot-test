@@ -195,24 +195,14 @@ class Upgrader:
         raise Exception("Failed to get resources")
 
     def home_lab_available(self, timeout=60):
-        import time, cv2
-        
+        import time
+
         start = time.time()
         while time.time() < start + timeout:
             try:
-                section = Frame_Handler.get_frame_section(0.368, 0.04, -0.59, 0.08, high_contrast=True)
-                if configs.DEBUG: Frame_Handler.save_frame(section, "debug/home_lab.png")
-                
-                # Find the backslash
-                slash = cv2.cvtColor(self.misc_assets["slash"], cv2.COLOR_RGB2GRAY)
-                res = cv2.matchTemplate(section, slash, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, _ = cv2.minMaxLoc(res)
-                if max_val < 0.9: continue
-                
-                # Extract text
-                text = fix_digits(''.join(OCR_Handler.get_text(section)).replace(' ', '').replace('/', ''))
-                available = int(text[0])
-                return available > 0
+                conf, free, _ = read_counter(HOME_LAB_COUNTER, debug_name="home_lab")
+                if conf >= 0.9 and free is not None:
+                    return free > 0
             except (KeyboardInterrupt, SystemExit): raise
             except Exception as e:
                 if configs.DEBUG: print("home_lab_available", e)

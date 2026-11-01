@@ -1491,109 +1491,6 @@ class Attacker:
     # 💰 Loot Filter (skip poor bases with Next)
     # ============================================================
 
-    # ---------- loot digit reading (template matching, no OCR engine) ----------
-    # An OCR engine (LLM or easyocr) routinely drops a digit from long numbers.
-    # The loot font is fixed and the digits are bright, so matching each glyph
-    # against rendered templates is both exact and deterministic.
-
-    _GLYPH_CANVAS = (44, 60)   # w, h every digit box is normalised into
-    _digit_templates = None
-
-    @classmethod
-    def _norm_glyph(cls, mask):
-        """Fit a binary glyph into the fixed canvas, preserving aspect ratio."""
-        import cv2, numpy as np
-        cw, ch = cls._GLYPH_CANVAS
-        ys, xs = np.where(mask)
-        if len(xs) == 0: return np.zeros((ch, cw), np.uint8)
-        m = mask[ys.min():ys.max() + 1, xs.min():xs.max() + 1].astype(np.uint8)
-        s = min(cw / m.shape[1], ch / m.shape[0])
-        nw, nh = max(1, int(round(m.shape[1] * s))), max(1, int(round(m.shape[0] * s)))
-        m = cv2.resize(m, (nw, nh), interpolation=cv2.INTER_AREA)
-        out = np.zeros((ch, cw), np.uint8)
-        y0, x0 = (ch - nh) // 2, (cw - nw) // 2
-        out[y0:y0 + nh, x0:x0 + nw] = (m > 0)
-        return out
-
-    @classmethod
-    def _loot_digit_templates(cls):
-        if cls._digit_templates is None:
-            cls._digit_templates = {
-                d: cls._norm_glyph(Frame_Handler.grayscale(render_text(str(d), "SupercellMagic", 100)) >= 128)
-                for d in range(10)
-            }
-        return cls._digit_templates
-
-    @classmethod
-    def _match_digit(cls, box):
-        import numpy as np
-        n = cls._norm_glyph(box)
-        best, best_d = -1.0, None
-        for d, t in cls._loot_digit_templates().items():
-            union = np.logical_or(n, t).sum()
-            iou = np.logical_and(n, t).sum() / union if union else 0.0
-            if iou > best: best, best_d = iou, d
-        return best_d, best
-
-    @classmethod
-    def _read_loot_row(cls, crop_rgb, v_min=225, s_max=90):
-        """Read one loot row (RGB crop) as an int, or None."""
-        import cv2, numpy as np
-
-        # Loot digits are bright and near-white; the coin/elixir/dark icons and
-        # the sandy paths in the terrain are all clearly coloured. Requiring low
-        # saturation drops them without blanking a region (blanking a fixed
-        # region used to swallow the leading digit).
-        hsv = cv2.cvtColor(crop_rgb, cv2.COLOR_RGB2HSV)
-        white = ((hsv[..., 2] >= v_min) & (hsv[..., 1] <= s_max)).astype(np.uint8)
-        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8))
-
-        n, lab, st, _ = cv2.connectedComponentsWithStats(white, 8)
-        if n <= 1: return None
-        comps = [(st[i, 0], st[i, 1], st[i, 2], st[i, 3], st[i, 4], i) for i in range(1, n)]
-        hmax = max(c[3] for c in comps)
-        ref_h = float(np.median([c[3] for c in comps if c[3] >= 0.55 * hmax]))
-        keep = [c for c in comps
-                if 0.6 * ref_h <= c[3] <= 1.35 * ref_h    # digit-height band
-                and c[4] >= 0.12 * c[2] * c[3]            # solid enough
-                and c[2] <= 6 * ref_h]                    # not a long streak
-        if not keep: return None
-
-        # Digits share one baseline; whatever else survived (an icon highlight,
-        # a bright leaf) sits off it — keep the largest aligned group.
-        tol = max(3, 0.14 * ref_h)
-        bottoms = [c[1] + c[3] for c in keep]
-        keep = max(([c for c, bb in zip(keep, bottoms) if abs(bb - b) <= tol] for b in bottoms),
-                   key=len)
-        # ...and one top line: a shorter bright shape (a sawtooth roof) can
-        # share the baseline by chance and was read as extra digits
-        top_line = float(np.median([c[1] for c in keep]))
-        keep = sorted(c for c in keep if abs(c[1] - top_line) <= tol)
-        # A number's glyphs sit close together (a thousands gap is ~half a
-        # digit); keep the biggest cluster, dropping far-off bright clutter
-        clusters = [[keep[0]]]
-        for c in keep[1:]:
-            prev = clusters[-1][-1]
-            if c[0] - (prev[0] + prev[2]) > 1.5 * ref_h: clusters.append([c])
-            else: clusters[-1].append(c)
-        keep = max(clusters, key=len)
-
-        widths = [c[2] for c in keep]
-        unit_w = float(np.median([w for w in widths if w > 0.45 * ref_h] or widths))
-
-        digits = []
-        for x, y, w, h, area, i in keep:
-            blob = (lab[y:y + h, x:x + w] == i)
-            k = max(1, int(round(w / unit_w))) if unit_w > 0 else 1
-            if k == 1:
-                digits.append(cls._match_digit(blob)[0])
-            else:
-                step = w / k   # merged glyphs (e.g. "00"): cut into equal slices
-                for j in range(k):
-                    digits.append(cls._match_digit(blob[:, int(j * step):int((j + 1) * step)])[0])
-        if not digits: return None
-        return int("".join(str(d) for d in digits))
-
     # plausible range of each "Available Loot" value (outside = misread)
     LOOT_RANGES = {
         "gold":   (100, 3_000_000),
@@ -1654,7 +1551,7 @@ class Attacker:
         for name, (y0, y1) in bands.items():
             lo, hi = self.LOOT_RANGES[name]
             crop = Frame_Handler.get_frame_section(0.02, y0, 0.21, y1, grayscale=False, use_cached=True)
-            value = self._read_loot_row(crop)
+            value = Digit_Reader.read(crop)
             # Dark elixir is absent on low town halls — treat only gold/elixir
             # as mandatory so those bases can still be evaluated
             if value is None or not (lo <= value <= hi):
