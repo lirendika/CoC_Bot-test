@@ -62,7 +62,7 @@ class Attacker:
             if x is not None and y is not None:
                 Input_Handler.click(x, y)
                 time.sleep(3)
-                dismiss_rate_dialog()
+                close_blocking_screens()
                 return True
             # Dismiss intermediate popups (e.g. star bonus / achievements)
             x, y = Frame_Handler.locate(self.assets["okay"], thresh=0.9, use_cached=True)
@@ -1592,7 +1592,10 @@ class Attacker:
 
         for i in range(max_nexts):
             loot = None
-            for _ in range(3):
+            # The clouds (or the flames after Next) can take a few seconds
+            # longer than the wait below to clear; the reader returns None
+            # until the panel shows
+            for _ in range(6):
                 loot = self._read_available_loot()
                 if loot is not None: break
                 time.sleep(1.5)
@@ -1647,7 +1650,7 @@ class Attacker:
                 except (KeyboardInterrupt, SystemExit): raise
                 except:
                     # A menu or dialog left open dims the counters
-                    if not dismiss_rate_dialog(): Input_Handler.click_exit()
+                    if not close_blocking_screens(): Input_Handler.click_exit()
             if time.time() - start_time >= timeout: return
 
             # No point farming when both storages are already full — unless the

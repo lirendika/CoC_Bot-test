@@ -5,8 +5,8 @@ Every frame's manifest entry says whether the upgrade panel is open (and on
 which tab), whether an upgrade dialog is up, and for hand-checked panel
 frames the name/affordable/new state of each purchasable row, for home
 frames how full the gold and elixir storages are, and where a battle result's
-"Return Home" button and the rate dialog's LATER are (no other frame may show
-them). Exit 0 when everything agrees:
+"Return Home" button, a watched defense's "Return Home" and the rate dialog's
+LATER are (no other frame may show them). Exit 0 when everything agrees:
 
     .venv/bin/python scripts/panel_eval.py
 """
@@ -61,13 +61,14 @@ def main():
                 want_rh and max(abs(g - w) for g, w in zip(got_rh, want_rh)) > 0.01):
             errors += 1
             print(f"XX {rel}: Return Home at {got_rh}, expected {want_rh}")
-        checks += 1
-        later = utils.Frame_Handler.locate(utils.Asset_Manager.misc_assets["dialog_later"], thresh=0.9, use_cached=True)
-        want_later = info.get("dialog_later")
-        if (later[0] is None) != (want_later is None) or (
-                want_later and max(abs(g - w) for g, w in zip(later, want_later)) > 0.01):
-            errors += 1
-            print(f"XX {rel}: rate dialog LATER at {later}, expected {want_later}")
+        for asset in ("dialog_later", "return_home_replay"):
+            checks += 1
+            got = utils.Frame_Handler.locate(utils.Asset_Manager.misc_assets[asset], thresh=0.9, use_cached=True)
+            want = info.get(asset)
+            if (got[0] is None) != (want is None) or (
+                    want and max(abs(g - w) for g, w in zip(got, want)) > 0.01):
+                errors += 1
+                print(f"XX {rel}: {asset} at {got}, expected {want}")
         if "storage" in info:
             levels = utils.get_storage_fill_levels()
             for res, want_level in info["storage"].items():

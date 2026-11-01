@@ -554,7 +554,11 @@
       ]
     },
     "coc_18.647_2026-11/replay_end.webp": {
-      "screen": "End of a replay from the Battle Log: 'Play Again' bottom right, a portrait 'Return Home' bottom left (not the result screen's button)"
+      "screen": "End of a replay from the Battle Log: 'Play Again' bottom right, the portrait 'Return Home' bottom left (same button as a watched defense, see defense_end)",
+      "return_home_replay": [
+        0.066,
+        0.889
+      ]
     },
     "coc_18.647_2026-11/rate_dialog.webp": {
       "screen": "Google Play's 'Rate Clash of Clans' dialog [LATER] [NEVER] [REVIEW] over the village after a 3-star win. Taps outside it do nothing, so click_exit can't close it; utils.dismiss_rate_dialog taps LATER (assets/misc/dialog_later.png, 1.0 here, <=0.48 elsewhere)",
@@ -575,6 +579,37 @@
       "panel": {
         "tab": "builders"
       }
+    },
+    "coc_18.647_2026-11/defense_end.webp": {
+      "screen": "CoC opened while the village was being attacked (shield had just run out while offline): the live defense ends on this summary with a portrait 'Return Home' bottom left that click_exit can't reach. utils.close_blocking_screens taps it (assets/misc/return_home_replay.png, 1.0 here and on replay_end, <=0.33 elsewhere)",
+      "return_home_replay": [
+        0.066,
+        0.889
+      ]
+    },
+    "coc_18.647_2026-11/attack_6.webp": {
+      "screen": "Attack scouting screen, post-update UI, forest scenery",
+      "loot": [
+        892090,
+        806935,
+        2025
+      ]
+    },
+    "coc_18.647_2026-11/attack_7.webp": {
+      "screen": "Attack scouting screen, post-update UI, path scenery",
+      "loot": [
+        1115826,
+        1478475,
+        13623
+      ]
+    },
+    "coc_18.647_2026-11/next_transition.webp": {
+      "screen": "The flame transition right after Next (it can outlast the 4-6.5 s wait): the loot reader must return None, not guess",
+      "loot": null
+    },
+    "coc_18.647_2026-11/clouds_clearing.webp": {
+      "screen": "Clouds still clearing over a new base after Next: the loot reader must return None",
+      "loot": null
     }
   }
 }

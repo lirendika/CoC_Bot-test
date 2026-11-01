@@ -2,7 +2,8 @@
 
 Every frame in tests/ui_frames/manifest.json that records its true
 "loot": [gold, elixir, dark] is read with Attacker._read_available_loot and
-compared value by value. Run it after any change to the loot reader, and
+compared value by value; on frames whose "loot" is null (transitions) the
+reader must return None rather than guess. Run it after any change to the loot reader, and
 after a CoC update (add fresh attack screens to the manifest first):
 
     .venv/bin/python scripts/loot_eval.py
@@ -29,12 +30,17 @@ def main():
             continue
         use_frame(load_frame(FRAMES / rel))
         loot = reader._read_available_loot()
+        if info["loot"] is None:
+            ok += loot is None
+            total += 1
+            print(f"{rel:42s} truth=unreadable got={loot} {'ok' if loot is None else 'XX'}")
+            continue
         got = (loot["gold"], loot["elixir"], loot["dark"]) if loot else (None, None, None)
         marks = ["ok" if g == t else "XX" for g, t in zip(got, info["loot"])]
         ok += marks.count("ok")
         total += 3
         print(f"{rel:42s} truth={tuple(info['loot'])} got={got} {' '.join(marks)}")
-    print(f"score: {ok}/{total} values")
+    print(f"score: {ok}/{total} checks")
     return ok == total
 
 

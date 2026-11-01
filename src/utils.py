@@ -503,14 +503,21 @@ def get_home_builders(timeout=60, return_amount=True, raise_exception=True, use_
     return _get_free_builders(HOME_BUILDER_COUNTER, "get_home_builders",
                               timeout, return_amount, raise_exception, use_cached_frame)
 
-def dismiss_rate_dialog(use_cached_frame=False):
-    """Tap LATER on Google Play's "Rate Clash of Clans" dialog, which can follow
-    a won battle. It ignores taps outside it, so click_exit can't close it."""
-    x, y = Frame_Handler.locate(Asset_Manager.misc_assets["dialog_later"], thresh=0.9, use_cached=use_cached_frame)
-    if x is None or y is None: return False
-    print("⭐ Closing the 'Rate Clash of Clans' dialog (Later)")
-    Input_Handler.click(x, y)
-    return True
+def close_blocking_screens(use_cached_frame=False):
+    """Close what click_exit can't, returning whether it tapped one: Google
+    Play's "Rate Clash of Clans" dialog after a won battle (taps outside it do
+    nothing; tap LATER), and a defense or replay being watched — CoC opens on
+    one when the village is attacked while offline — whose "Return Home"
+    sits bottom left."""
+    if not use_cached_frame: Frame_Handler.get_frame()
+    for name, what in (("dialog_later", "⭐ Closing the 'Rate Clash of Clans' dialog (Later)"),
+                       ("return_home_replay", "🏠 Leaving a defense/replay screen (Return Home)")):
+        x, y = Frame_Handler.locate(Asset_Manager.misc_assets[name], thresh=0.9, use_cached=True)
+        if x is not None and y is not None:
+            print(what)
+            Input_Handler.click(x, y)
+            return True
+    return False
 
 def start_coc(timeout=60, force=True):
     import time
@@ -547,7 +554,7 @@ def start_coc(timeout=60, force=True):
             cont_x, cont_y = Frame_Handler.locate(Asset_Manager.misc_assets["continue"], grayscale=False, thresh=0.8, ref="cc", use_cached=True)
             if cont_x is not None and cont_y is not None:
                 Input_Handler.click(cont_x, cont_y)
-            dismiss_rate_dialog(use_cached_frame=True)
+            close_blocking_screens(use_cached_frame=True)
 
             update_coc(timeout=5, from_in_game=True)
             
