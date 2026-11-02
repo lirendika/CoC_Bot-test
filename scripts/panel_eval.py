@@ -5,8 +5,9 @@ Every frame's manifest entry says whether the upgrade panel is open (and on
 which tab), whether an upgrade dialog is up, and for hand-checked panel
 frames the name/affordable/new state of each purchasable row, for home
 frames how full the gold and elixir storages are, and where a battle result's
-"Return Home" button, a watched defense's "Return Home" and the rate dialog's
-LATER are (no other frame may show them). Exit 0 when everything agrees:
+"Return Home" button, a watched defense's "Return Home", the rate dialog's
+LATER, an idle helper's "Available" tag and the helper dialog's topmost Assign
+and Confirm are (no other frame may show them). Exit 0 when everything agrees:
 
     .venv/bin/python scripts/panel_eval.py
 """
@@ -19,6 +20,12 @@ FRAMES = REPO / "tests" / "ui_frames"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ui_probe import load_frame, use_frame  # noqa: E402
+
+
+def differs(got, want):
+    """A detector's (x, y) or (None, None) against the manifest's [x, y] or None."""
+    return (got[0] is None) != (want is None) or (
+        want is not None and max(abs(g - w) for g, w in zip(got, want)) > 0.01)
 
 
 def main():
@@ -57,18 +64,29 @@ def main():
         checks += 1
         got_rh = A._locate_return_home()
         want_rh = info.get("return_home")
-        if (got_rh[0] is None) != (want_rh is None) or (
-                want_rh and max(abs(g - w) for g, w in zip(got_rh, want_rh)) > 0.01):
+        if differs(got_rh, want_rh):
             errors += 1
             print(f"XX {rel}: Return Home at {got_rh}, expected {want_rh}")
         for asset in ("dialog_later", "return_home_replay"):
             checks += 1
             got = utils.Frame_Handler.locate(utils.Asset_Manager.misc_assets[asset], thresh=0.9, use_cached=True)
             want = info.get(asset)
-            if (got[0] is None) != (want is None) or (
-                    want and max(abs(g - w) for g, w in zip(got, want)) > 0.01):
+            if differs(got, want):
                 errors += 1
                 print(f"XX {rel}: {asset} at {got}, expected {want}")
+        checks += 1
+        got = P.helper_tag(frame) or (None, None)
+        if differs(got, info.get("helper_tag")):
+            errors += 1
+            print(f"XX {rel}: helper tag at {got}, expected {info.get('helper_tag')}")
+        for key, asset in (("helper_assign", "assign_assistant"), ("helper_confirm", "confirm_assistant")):
+            checks += 1
+            hits = utils.Frame_Handler.locate(utils.Asset_Manager.upgrader_assets[asset], frame=frame,
+                                              grayscale=False, thresh=0.9, return_all=True)
+            got = min(hits, key=lambda p: p[1]) if hits else (None, None)   # the topmost, as the bot taps
+            if differs(got, info.get(key)):
+                errors += 1
+                print(f"XX {rel}: {asset} at {got}, expected {info.get(key)}")
         if "storage" in info:
             levels = utils.get_storage_fill_levels()
             for res, want_level in info["storage"].items():

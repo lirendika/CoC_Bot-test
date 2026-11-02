@@ -84,7 +84,7 @@
       "dialog": true
     },
     "coc_18.647_2026-11/research_panel.webp": {
-      "screen": "Research tab ('Army Upgrades') of the same right-side panel",
+      "screen": "Research tab ('Army Upgrades') of the same right-side panel. The 'Available' tag with a green goblin face and a 25m 10s countdown at its left edge is the event Goblin Researcher, not the Lab Assistant: assistant_available matches it (0.97) but Upgrade_Panel.helper_tag skips it by the goblin-green face",
       "panel": {
         "tab": "research",
         "rows": [
@@ -575,7 +575,7 @@
       ]
     },
     "coc_18.647_2026-11/build_panel_apprentice_working.webp": {
-      "screen": "Builders tab with every builder busy; the goblin icon on the first Ricochet Cannon row is the Builder's Apprentice working on it. The old assistant_available / assign_assistant / confirm_assistant templates match nothing on the new UI (<=0.56), so the apprentice and lab assistant flows do nothing until they are re-captured while one is free",
+      "screen": "Builders tab with every builder busy and the Builder's Apprentice at work: no 'Available' tag at the panel's left edge. The goblin icon on the first Ricochet Cannon row is not the apprentice (the research tab shows the same icon on one research)",
       "panel": {
         "tab": "builders"
       }
@@ -610,6 +610,69 @@
     "coc_18.647_2026-11/clouds_clearing.webp": {
       "screen": "Clouds still clearing over a new base after Next: the loot reader must return None",
       "loot": null
+    },
+    "coc_18.647_2026-11/build_panel_apprentice_available.webp": {
+      "screen": "Builders tab while the Builder's Apprentice is idle: an 'Available' tag with the apprentice's face floats at the panel's left edge (assets/upgrader/assistant_available.png, 0.96 here). Tapping it opens the helper dialog (helper_dialog_apprentice)",
+      "panel": {
+        "tab": "builders"
+      },
+      "helper_tag": [
+        0.649,
+        0.417
+      ]
+    },
+    "coc_18.647_2026-11/research_panel_assistant_available.webp": {
+      "screen": "Research tab while the Lab Assistant is idle: the same 'Available' tag, with the lab assistant's face, at the same spot (the template's source)",
+      "panel": {
+        "tab": "research"
+      },
+      "helper_tag": [
+        0.649,
+        0.416
+      ]
+    },
+    "coc_18.647_2026-11/helper_dialog_apprentice.webp": {
+      "screen": "Builder's Apprentice dialog (level 8, works 1h at x8) opened from its tag: 'Assign the Builder's Apprentice?' lists the running upgrades longest first, each with a green Assign (assets/upgrader/assign_assistant.png, unchanged from the old UI, 1.0); the topmost one is tapped. Its X sits where an upgrade dialog's does, so dialog_open reads True",
+      "dialog": true,
+      "helper_assign": [
+        0.841,
+        0.416
+      ]
+    },
+    "coc_18.647_2026-11/helper_dialog_lab_assistant.webp": {
+      "screen": "Lab Assistant dialog (level 2, works 1h at x2). The big green 'Upgrade 500' button bottom left levels the helper up for GEMS and must never be tapped: confirm_assistant scores 0.43 on it",
+      "dialog": true,
+      "helper_assign": [
+        0.841,
+        0.416
+      ]
+    },
+    "coc_18.647_2026-11/helper_confirm_lab_assistant.webp": {
+      "screen": "After Assign: 'Speed up the Healing Spell? Do you want to assign the Assistant to the Healing Spell?' with an unticked 'Keep assigned until upgrade is complete' box (left alone) and a Confirm whose text still matches the old assets/upgrader/confirm_assistant.png (1.0). Closed with its X here, nothing assigned. The dimmed Assign buttons behind still match assign_assistant at 1.0 (TM_CCOEFF_NORMED ignores brightness)",
+      "helper_assign": [
+        0.841,
+        0.416
+      ],
+      "helper_confirm": [
+        0.539,
+        0.795
+      ]
+    },
+    "coc_18.647_2026-11/helper_dialog_lab_assistant_working.webp": {
+      "screen": "The Lab Assistant dialog right after Confirm: 'Job in progress' on the Healing Spell, no Assign buttons, 'Time left: 1H', and the gem Upgrade button greyed out. Upgrader._assign_helper closes it with the dialog X",
+      "dialog": true
+    },
+    "coc_18.647_2026-11/research_panel_assistant_working.webp": {
+      "screen": "Research tab once the Lab Assistant works: its tag shows a 59m 58s countdown instead of 'Available' (helper_tag None), and the Healing Spell row carries its face",
+      "panel": {
+        "tab": "research"
+      }
+    },
+    "coc_18.647_2026-11/build_panel_apprentice_assigned.webp": {
+      "screen": "Builders tab once the Builder's Apprentice works on the Firespitter: countdown tag, no 'Available', the apprentice's face on the Firespitter row",
+      "panel": {
+        "tab": "builders"
+      }
     }
   }
 }

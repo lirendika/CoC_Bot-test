@@ -98,4 +98,4 @@ Game updates move buttons and restyle screens. [tests/ui_frames](tests/ui_frames
 * `python scripts/panel_eval.py` and `python scripts/loot_eval.py` check the bot's screen readers (upgrade panel, storage bars, battle result, dialogs, loot) against those frames; exit code 0 means all agree
 * `python scripts/ui_probe.py <screenshot> scan` scores every template on a screenshot, and `eval "<expression>"` runs any bot function on it
 * `python scripts/capture_frame.py <folder/name>` saves the live BlueStacks screen as a new reference frame
-* `python scripts/upgrade_dryrun.py` drives the real upgrade flows on the live game while blocking every tap that would spend resources
+* `python scripts/upgrade_dryrun.py` drives the real upgrade flows on the live game while blocking every tap that would spend resources (`upgrade_dryrun.py helpers` walks the Builder's Apprentice and Lab Assistant flows up to their blocked Confirm while both are idle)

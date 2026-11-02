@@ -536,43 +536,47 @@ class Upgrader:
                 if upgrade_name is not None: return upgrade_name
         return self.home_random_upgrade()
     
+    def _assign_helper(self, tab, helper):
+        """Put the idle helper of a panel tab on the running upgrade with the
+        most time left and return whether it went to work. Its "Available"
+        tag opens the helper's dialog, which lists the running upgrades
+        longest first, each with an Assign button; Assign asks to confirm (the
+        "Keep assigned until upgrade is complete" box is left as it is). The
+        dialog's big green button levels the helper up for gems: never pressed."""
+        import time
+
+        if not Upgrade_Panel.open(tab): return False
+        tag = Upgrade_Panel.helper_tag()
+        if tag is None: return False
+        Input_Handler.click(*tag)
+
+        start, buttons = time.time(), []
+        while not buttons and time.time() - start < 3:
+            time.sleep(0.3)
+            buttons = Frame_Handler.locate(self.assets["assign_assistant"], thresh=0.9, grayscale=False, return_all=True)
+        if not buttons: return False
+        Input_Handler.click(*min(buttons, key=lambda pair: pair[1]))
+
+        locate_confirm = lambda: Frame_Handler.locate(self.assets["confirm_assistant"], grayscale=False, thresh=0.9)
+        if not click_with_timeout(locate_confirm, timeout=3): return False
+        time.sleep(1)
+        if locate_confirm()[0] is not None: return False   # still asking
+        Upgrade_Panel.close(dialog_only=True)
+        time.sleep(0.5)
+        # The tag only counts as gone once nothing covers the panel any more
+        assigned = Upgrade_Panel.is_open() and Upgrade_Panel.helper_tag() is None
+        if assigned: print(f"⏩ {helper} assigned")
+        return assigned
+
     @require_exit()
     def assign_builder_apprentice(self):
-        import time
-        
         try:
-            # Open upgrade list menu
-            self._click_home_builders()
-            time.sleep(0.5)
-            
-            # Find assistant available label
-            xys = Frame_Handler.locate(self.assets["assistant_available"], thresh=0.8, return_all=True)
-            xys = sorted(xys, key=lambda pair: pair[1])
-            if len(xys) == 0: return
-            x, y = xys[0]
-
-            Input_Handler.click(x, y)
-            time.sleep(0.5)
-            
-            # Find assign assistant label
-            xys = Frame_Handler.locate(self.assets["assign_assistant"], thresh=0.9, grayscale=False, return_all=True)
-            if len(xys) == 0: return
-            
-            x, y = sorted(xys, key=lambda pair: pair[1])[0]
-            
-            Input_Handler.click(x, y)
-            time.sleep(0.5)
-            
-            # Find confirm button
-            x, y = Frame_Handler.locate(self.assets["confirm_assistant"], grayscale=False, thresh=0.9)
-            if x is None or y is None: return
-            
-            Input_Handler.click(x, y)
-            time.sleep(0.5)
+            return self._assign_helper("builders", "Builder's Apprentice")
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:
             if configs.DEBUG: print("assign_builder_apprentice", e)
-    
+            return False
+
     @require_exit()
     def home_lab_random_upgrade(self):
         try:
@@ -615,41 +619,13 @@ class Upgrader:
 
     @require_exit()
     def assign_lab_assistant(self):
-        import time
-        
         try:
-            # Open upgrade list menu
-            self._click_home_lab()
-            time.sleep(0.5)
-            
-            # Find assistant available label
-            xys = Frame_Handler.locate(self.assets["assistant_available"], thresh=0.8, return_all=True)
-            xys = sorted(xys, key=lambda pair: pair[1])
-            if len(xys) == 0: return
-            x, y = xys[0]
-            
-            Input_Handler.click(x, y)
-            time.sleep(0.5)
-            
-            # Find assign assistant label
-            xys = Frame_Handler.locate(self.assets["assign_assistant"], thresh=0.9, grayscale=False, return_all=True)
-            if len(xys) == 0: return
-            
-            x, y = sorted(xys, key=lambda pair: pair[1])[0]
-            
-            Input_Handler.click(x, y)
-            time.sleep(0.5)
-            
-            # Find confirm button
-            x, y = Frame_Handler.locate(self.assets["confirm_assistant"], grayscale=False, thresh=0.9)
-            if x is None or y is None: return
-            
-            Input_Handler.click(x, y)
-            time.sleep(0.5)
+            return self._assign_helper("research", "Lab Assistant")
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:
             if configs.DEBUG: print("assign_lab_assistant", e)
-    
+            return False
+
     @require_exit()
     def builder_random_upgrade(self):
         import time, re, numpy as np

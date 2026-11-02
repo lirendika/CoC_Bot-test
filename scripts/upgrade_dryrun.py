@@ -9,11 +9,16 @@ Use it after a CoC update to check the upgrade panel end to end:
     .venv/bin/python scripts/upgrade_dryrun.py            # lab, build, wall
     .venv/bin/python scripts/upgrade_dryrun.py lab wall   # some of them
     .venv/bin/python scripts/upgrade_dryrun.py busy       # opt-in, see below
+    .venv/bin/python scripts/upgrade_dryrun.py helpers    # opt-in, see below
 
 "busy" checks what happens when every builder is busy: it really presses
 Confirm and Okay, which then only bring up "All builders are busy!" (free one
 up for gems). It refuses to start while a builder is free, and the gem button
 of that popup is never pressed.
+
+"helpers" walks the Builder's Apprentice and Lab Assistant flows (Available
+tag, topmost Assign) up to their Confirm, which is blocked, so nothing gets
+assigned. It needs both helpers idle.
 
 Needs BlueStacks running with ADB on and CoC open on the home village.
 """
@@ -61,6 +66,12 @@ def guarded_click(cls, x, y, n=1, delay=0, pointer=0):
         if near_confirm or (Upgrade_Panel.dialog_open(frame) and 0.45 <= x <= 0.80 and 0.78 <= y <= 0.95):
             BLOCKED.append(f"upgrade dialog Confirm at ({x:.3f},{y:.3f})")
             print(f"      [guard] blocked a Confirm tap at ({x:.3f},{y:.3f}), screen in {save_blocked(frame)}")
+            return
+        hx, hy, hc = Frame_Handler.locate(Asset_Manager.upgrader_assets["confirm_assistant"], frame=frame,
+                                          grayscale=False, return_confidence=True)
+        if hc >= 0.9 and abs(x - hx) < 0.10 and abs(y - hy) < 0.06:
+            BLOCKED.append(f"helper Confirm at ({x:.3f},{y:.3f})")
+            print(f"      [guard] blocked a helper Confirm at ({x:.3f},{y:.3f}), screen in {save_blocked(frame)}")
             return
         ox, oy, oc = Frame_Handler.locate(Asset_Manager.attacker_assets["okay"], frame=gray, return_confidence=True)
         if oc >= 0.85 and abs(x - ox) < 0.12 and abs(y - oy) < 0.08:
@@ -144,6 +155,12 @@ def main(selected):
             ("busy: wall batch Okay -> 'All builders are busy!', None",
              all_builders_busy(lambda: U.home_specified_upgrade("Wall", wall_batch=True, ignore_insufficient=True)),
              lambda r, b: r is None and not b),
+        ],
+        "helpers": [
+            ("helpers: Builder's Apprentice -> Assign -> Confirm", lambda: U.assign_builder_apprentice(),
+             lambda r, b: r is False and len(b) == 1),
+            ("helpers: Lab Assistant -> Assign -> Confirm", lambda: U.assign_lab_assistant(),
+             lambda r, b: r is False and len(b) == 1),
         ],
     }
     results = []

@@ -2116,6 +2116,26 @@ class Upgrade_Panel:
     def tap(cls, row):
         Input_Handler.click(cls.TAP_X / WINDOW_DIMS[0], (row["price_y"] - 13) / WINDOW_DIMS[1])
 
+    @classmethod
+    def helper_tag(cls, frame=None):
+        """Centre of an idle helper's "Available" tag, or None. The tag floats
+        at the panel's left edge with the helper's face to its right: the
+        Builder's Apprentice on the builders tab, the Lab Assistant on
+        research. The same tag with a green goblin face over a countdown (the
+        event Goblin Researcher) is not a helper and is skipped."""
+        import cv2
+        frame = cls._frame(frame)
+        tags = Frame_Handler.locate(Asset_Manager.upgrader_assets["assistant_available"],
+                                    frame=Frame_Handler.grayscale(frame), thresh=0.85, return_all=True)
+        for x, y in sorted(tags, key=lambda p: p[1]):
+            cx, cy = int(x * WINDOW_DIMS[0]), int(y * WINDOW_DIMS[1])
+            face = cv2.cvtColor(frame[max(0, cy - 43):cy + 42, cx + 58:cx + 158], cv2.COLOR_RGB2HSV)
+            h, s, v = face[..., 0], face[..., 1], face[..., 2]
+            # goblin skin covers ~1400 px of the face box, a helper's < 100
+            if int(((h >= 30) & (h <= 50) & (s >= 110) & (v >= 110)).sum()) < 500:
+                return x, y
+        return None
+
 class Dev_Tools:
     @classmethod
     def optimal_template_font_size(cls, frame, text, font, font_size_range=(1, 100), color=(255, 255, 255), return_results=False, plot_results=False):
