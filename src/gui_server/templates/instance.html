@@ -64,6 +64,16 @@
             <div class="rows" id="rows_upgrades"></div>
         </section>
 
+        <section class="panel">
+            <h2 class="panel-title supercell outlined">
+                <svg class="title-icon" viewBox="0 0 32 32" aria-hidden="true">
+                    <path d="M19.5 3.5 A13 13 0 1 0 28.5 21.5 A10 10 0 0 1 19.5 3.5 Z" fill="#ffe27a" stroke="#1d1a17" stroke-width="2.5" stroke-linejoin="round"/>
+                </svg>
+                <span class="grow">Rest</span>
+            </h2>
+            <div class="rows" id="rows_rest"></div>
+        </section>
+
         <section class="panel locked" aria-disabled="true" title="Not adapted to the new Clash of Clans UI yet">
             <h2 class="panel-title supercell outlined">
                 <span class="grow">Builder Base</span>
@@ -96,6 +106,7 @@
         let clock = { server: {{ current_time }}, local: Date.now() };
         let endTime = {{ end_time }};
         let runStatus = {{ run_status | tojson }};
+        let restUntil = {{ rest_until | tojson }};
         let exclusions = new Set({{ exclusions | tojson }});
         const unavailable = new Set({{ unavailable | tojson }});
         let settings = {{ settings | tojson }};
@@ -131,6 +142,10 @@
                  "Assigns the Builder's Apprentice to the upgrade with the most time left"],
                 ["lab_assistant", "Lab Assistant", "Puts the assistant to work whenever free",
                  "Assigns the Lab Assistant to the research with the most time left"],
+            ],
+            rest: [
+                ["rest_when_idle", "Rest When Idle", "Closes CoC while there's nothing to do",
+                 "ON: after a round with no battle and no new upgrade (storages full, builders and lab busy), CoC closes for the rest time so the Mac cools down, then the bot checks again. Your village can be attacked while CoC is closed. OFF: CoC stays open and the bot checks again within seconds"],
             ],
             builder: [
                 ["builder_base", "Upgrades", "Builder Base buildings", ""],
@@ -186,9 +201,18 @@
             } catch (error) { console.error("current_time", error); }
         }
 
+        // Nobody looking (window minimized, covered or on another desktop):
+        // one check every 30 s instead of every 2 s, and no repaints
+        let lastRefresh = 0;
         async function refresh() {
+            if (document.hidden && Date.now() - lastRefresh < 30000) return;
+            lastRefresh = Date.now();
             try { endTime = (await getJSON(url("end_time"))).end_time; } catch (error) { console.error(error); }
-            try { runStatus = (await getJSON(url("status"))).status; } catch (error) { console.error(error); }
+            try {
+                const data = await getJSON(url("status"));
+                runStatus = data.status;
+                restUntil = data.until || 0;
+            } catch (error) { console.error(error); }
             try { exclusions = new Set((await getJSON(url("exclude"))).exclusions); } catch (error) { console.error(error); }
             render();
         }
@@ -200,6 +224,7 @@
             try { endTime = (await post(url("end_time"), { time: minutes })).end_time; } catch (error) { console.error(error); }
             await syncClock();
             render();
+            setTimeout(refresh, 700);   // the bot's answer, sooner than the next poll
         }
 
         // An excluded task is OFF
@@ -228,47 +253,65 @@
             }
             if (runStatus === "error") return { state: "error", title: "Error", sub: "Retrying · details in debug/main.log" };
             if (runStatus === "idle") return { state: "idle", title: "Standby", sub: "Everything is off · Start Attack or switch on an upgrade" };
+            if (runStatus === "resting") {
+                const left = restUntil - now();
+                return {
+                    state: "resting",
+                    title: "Resting",
+                    sub: left > 0 ? `Nothing to do · CoC closed, next check in ${duration(left)}` : "Checking the village again…",
+                };
+            }
             if (runStatus === "now") return { state: "running", title: "Running", sub: "Working on the village…" };
             if (typeof runStatus === "number") return { state: "running", title: "Running", sub: `Last round ${duration(now() - runStatus)} ago` };
             if (runStatus === "paused") return { state: "starting", title: "Starting", sub: "Starting over from the beginning…" };
             return { state: "starting", title: "Starting", sub: "Connecting to BlueStacks…" };
         }
 
-        function setButton(button, color, icon, label) {
+        // DOM writes only when something changed: an unchanged page never repaints
+        const setText = (el, text) => { if (el.textContent !== text) el.textContent = text; };
+        const setAttr = (el, name, value) => { if (el.getAttribute(name) !== value) el.setAttribute(name, value); };
+
+        function setButton(button, color, icon, label, title) {
             const html = `${icon}<span>${label}</span>`;
             if (button.dataset.html !== html) { button.innerHTML = html; button.dataset.html = html; }
-            button.classList.remove("btn-yellow", "btn-red", "btn-green", "btn-blue");
-            button.classList.add(color);
+            if (!button.classList.contains(color)) {
+                button.classList.remove("btn-yellow", "btn-red", "btn-green", "btn-blue");
+                button.classList.add(color);
+            }
+            setAttr(button, "title", title);
         }
 
         function render() {
             const view = statusView();
-            $("#status").dataset.state = view.state;
-            $("#status_title").textContent = view.title;
-            $("#status_sub").textContent = view.sub;
+            const status = $("#status");
+            setAttr(status, "data-state", view.state);
+            // Starting / stopping blink once a second, driven from here: an
+            // endless CSS animation would redraw the window 60 times a second
+            const blinking = view.state === "starting" || view.state === "pausing";
+            setAttr(status, "data-blink", blinking && Math.floor(Date.now() / 1000) % 2 ? "dim" : "");
+            setText($("#status_title"), view.title);
+            setText($("#status_sub"), view.sub);
 
             const paused = pausedFor() > 0;
             if (isOn("home_attacks")) {
-                setButton($("#attack_button"), "btn-red", ICONS.stop, "Stop Attack");
-                $("#attack_button").title = "No new battles after the current one (Pause stops everything at once)";
+                setButton($("#attack_button"), "btn-red", ICONS.stop, "Stop Attack",
+                    "No new battles after the current one (Pause stops everything at once)");
             } else {
-                setButton($("#attack_button"), "btn-yellow", SWORD, "Start Attack");
-                $("#attack_button").title = paused ? "Resume the bot and start attacking" : "Start attacking";
+                setButton($("#attack_button"), "btn-yellow", SWORD, "Start Attack",
+                    paused ? "Resume the bot and start attacking" : "Start attacking");
             }
             if (paused) {
-                setButton($("#pause_button"), "btn-green", ICONS.play, "Resume");
-                $("#pause_button").title = "The bot starts over from the beginning";
+                setButton($("#pause_button"), "btn-green", ICONS.play, "Resume", "The bot starts over from the beginning");
             } else {
-                setButton($("#pause_button"), "btn-blue", ICONS.pause, "Pause");
-                $("#pause_button").title = "Stops every bot touch right away, so you can play yourself";
+                setButton($("#pause_button"), "btn-blue", ICONS.pause, "Pause",
+                    "Stops every bot touch right away, so you can play yourself");
             }
 
             document.querySelectorAll(".row[data-key]").forEach((row) => {
                 if (row.disabled) return;
                 const on = isOn(row.dataset.key);
-                row.setAttribute("aria-pressed", on ? "true" : "false");
-                const sw = row.querySelector(".switch");
-                if (sw.textContent !== (on ? "ON" : "OFF")) sw.textContent = on ? "ON" : "OFF";
+                setAttr(row, "aria-pressed", on ? "true" : "false");
+                setText(row.querySelector(".switch"), on ? "ON" : "OFF");
             });
         }
 
@@ -291,9 +334,9 @@
             }
         }
 
-        function buildField(container, key, icon, max) {
+        function buildField(container, key, icon, max, unit = "percent") {
             const field = document.createElement("label");
-            field.className = icon ? "field" : "field percent";
+            field.className = icon ? "field" : `field ${unit}`;
             field.innerHTML = `${icon || ""}<input type="text" inputmode="numeric" autocomplete="off">`;
             const input = field.querySelector("input");
             const show = () => { input.value = groupDigits(settings[key] ?? 0); };
@@ -318,6 +361,7 @@
 
         buildRows($("#rows_attack"), OPTIONS.attack, false);
         buildRows($("#rows_upgrades"), OPTIONS.upgrades, false);
+        buildRows($("#rows_rest"), OPTIONS.rest, false);
         buildRows($("#rows_builder"), OPTIONS.builder, true);
 
         buildField($("#loot_inputs"), "min_loot_gold", ICONS.gold);
@@ -337,6 +381,19 @@
             <div class="setting-inputs"></div>`;
         wallRow.after(wallSetting);
         buildField(wallSetting.querySelector(".setting-inputs"), "wall_focus_min_storage_pct", null, 100);
+
+        // Rest time sits right under its switch (the server keeps it 1-240)
+        const restSetting = document.createElement("div");
+        restSetting.className = "setting";
+        restSetting.title = "How long CoC stays closed before the bot checks the village again";
+        restSetting.innerHTML = `
+            <div class="row-text">
+                <span class="row-label">Rest Time</span>
+                <span class="row-desc">CoC stays closed this long</span>
+            </div>
+            <div class="setting-inputs"></div>`;
+        document.querySelector('.row[data-key="rest_when_idle"]').after(restSetting);
+        buildField(restSetting.querySelector(".setting-inputs"), "rest_minutes", null, 240, "minutes");
 
         $("#attack_button").addEventListener("click", async () => {
             if (isOn("home_attacks")) return setOn("home_attacks", false);
@@ -364,9 +421,10 @@
 
         render();
         refresh();
-        setInterval(refresh, 1000);
-        setInterval(render, 250);
+        setInterval(refresh, 2000);
+        setInterval(() => { if (!document.hidden) render(); }, 1000);
         setInterval(syncClock, 30000);
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
     </script>
 </body>
 </html>

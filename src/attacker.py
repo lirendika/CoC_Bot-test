@@ -1638,8 +1638,11 @@ class Attacker:
 
     @require_exit()
     def run_home_base(self, timeout=60, restart=True):
+        """Attack once from the home village; True when a battle was fought
+        (the bot rests when a round fights none)."""
         import time
-        
+        fought = False
+
         try:
             # Make sure in home base
             start_time = time.time()
@@ -1651,15 +1654,16 @@ class Attacker:
                 except:
                     # A menu or dialog left open dims the counters
                     if not close_blocking_screens(): Input_Handler.click_exit()
-            if time.time() - start_time >= timeout: return
+            if time.time() - start_time >= timeout: return False
 
             # No point farming when both storages are already full — unless the
             # user turned this off to keep attacking regardless of storage
             if not Task_Handler.stop_attack_when_full_excluded(use_cached=True) and self._storages_full():
-                return
+                return False
 
             # Complete an attack
             if self.start_normal_attack(timeout):
+                fought = True   # counts even if the battle breaks halfway
                 if not Task_Handler.spam_event_excluded(use_cached=True):
                     self.complete_spam_event_attack(restart=restart)
                 else:
@@ -1667,6 +1671,7 @@ class Attacker:
 
         except Exception as e:
             if configs.DEBUG: print("attack_home_base", e)
+        return fought
 
     @require_exit()
     def run_builder_base(self, timeout=60, restart=True):

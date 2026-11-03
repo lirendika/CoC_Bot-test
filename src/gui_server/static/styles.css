@@ -165,24 +165,16 @@ button:focus-visible, input:focus-visible { outline: 3px solid #fff3a6; outline-
     color: #efe6cf;
 }
 
-.status[data-state="running"] .status-dot {
-    background: #7cea4f;
-    box-shadow: 0 0 10px rgba(124, 234, 79, 0.9);
-    animation: pulse 1.6s ease-in-out infinite;
-}
-
+/* No endless CSS animations here: they redraw the window every frame for
+   as long as the app is open. The page script blinks the dot once a second. */
+.status[data-state="running"] .status-dot { background: #7cea4f; box-shadow: 0 0 10px rgba(124, 234, 79, 0.9); }
 .status[data-state="starting"] .status-dot,
-.status[data-state="pausing"] .status-dot {
-    background: #ffd23a;
-    animation: blink 0.8s steps(2, jump-none) infinite;
-}
-
+.status[data-state="pausing"] .status-dot { background: #ffd23a; }
+.status[data-blink="dim"] .status-dot { opacity: 0.35; }
 .status[data-state="paused"] .status-dot { background: #5bbcff; }
+.status[data-state="resting"] .status-dot { background: #b79bff; box-shadow: 0 0 8px rgba(183, 155, 255, 0.8); }
 .status[data-state="error"] .status-dot { background: #ff5a45; box-shadow: 0 0 10px rgba(255, 90, 69, 0.9); }
 .status[data-state="idle"] .status-dot { background: #c9c9c9; }
-
-@keyframes pulse { 50% { box-shadow: 0 0 2px rgba(124, 234, 79, 0.4); } }
-@keyframes blink { 50% { opacity: 0.35; } }
 
 /* ---------- buttons ---------- */
 
@@ -429,6 +421,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #fff3a6; outline-
 
 .field.percent input { width: 70px; padding-left: 8px; padding-right: 22px; }
 .field.percent::after { content: "%"; position: absolute; right: 8px; font-family: "Supercell", sans-serif; font-size: 12px; }
+.field.minutes input { width: 84px; padding-left: 8px; padding-right: 40px; }
+.field.minutes::after { content: "min"; position: absolute; right: 8px; font-family: "Supercell", sans-serif; font-size: 12px; }
 .field input.saved { background: #e9fbd9; }
 
 .loot-setting { flex-wrap: wrap; }

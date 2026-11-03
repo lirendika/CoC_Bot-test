@@ -20,6 +20,7 @@
 ## Quality of Life Features
 * View bot status on desktop or web app 🚦
 * Pause from the desktop or web app stops every bot touch at once, so you can play yourself; Resume starts the bot over ⏯️
+* Rest When Idle: a round with nothing to do (storages full, builders and lab busy) closes CoC for the rest time, so the computer stays cool 😴
 * iPhone shortcut to auto resume / pause bot when CoC is opened by user ⏯️
 * Telegram and web app notifications 🔔
 * Automatic CoC app updates 🔼
@@ -32,7 +33,8 @@
 3. [BlueStacks](https://www.bluestacks.com/)
     * Device profile: Samsung Galaxy S22 Ultra
     * Display resolution: 1920 x 1080
-    * Frame rate: 60 (__NOTE__: Inconsistent touch events at lower fps)
+    * Frame rate: 30 (60 also works but keeps the computer hotter; after changing it, `python scripts/touch_check.py` checks on the live game that every tap, swipe and pinch still lands)
+    * Performance: 2 CPU cores and 3 GB memory are enough for CoC and keep the computer cooler
     * Enable Android Debug Bridge
     * In Multi-Instance Manager, rename instances to match instance IDs in `configs.py` (the default ID is main, see steps 2 and 5 in [Setup Instructions](#setup-instructions) for more details)
     * Install Clash of Clans from Google Play
@@ -99,4 +101,6 @@ Game updates move buttons and restyle screens. [tests/ui_frames](tests/ui_frames
 * `python scripts/ui_probe.py <screenshot> scan` scores every template on a screenshot, and `eval "<expression>"` runs any bot function on it
 * `python scripts/capture_frame.py <folder/name>` saves the live BlueStacks screen as a new reference frame
 * `python scripts/pause_eval.py` checks with a fake device that a Pause lets no tap, swipe, screenshot or app command through and that the bot then starts over
+* `python scripts/rest_eval.py` checks offline that only a round with nothing to do closes CoC and rests, and that a switch flipped in the app or a Pause ends the rest
+* `python scripts/touch_check.py` opens and closes the Build panel, switches its tabs, swipes its list and pinches the village on the live game (nothing bought), reporting every gesture the game missed: run it after changing BlueStacks' frame rate, cores or memory
 * `python scripts/upgrade_dryrun.py` drives the real upgrade flows on the live game while blocking every tap that would spend resources (`upgrade_dryrun.py helpers` walks the Builder's Apprentice and Lab Assistant flows up to their blocked Confirm while both are idle)

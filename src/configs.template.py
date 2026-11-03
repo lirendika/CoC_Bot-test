@@ -19,7 +19,8 @@ DEFAULT_INSTANCE_ID = INSTANCE_IDS[0]
 
 # REQUIRED: General Settings
 LOCAL_GUI = True # web app not required
-CHECK_INTERVAL = 5 # minutes
+CHECK_INTERVAL = 5 # minutes the bot rests (CoC closed) after a round with nothing to do; can be overridden on desktop app
+REST_WHEN_IDLE = True # ON: rounds with no battle and no new upgrade close CoC for CHECK_INTERVAL so the Mac stays cool (your village can be attacked meanwhile); OFF: CoC stays open and the bot checks again within seconds (can be overridden on desktop or web app)
 
 # REQUIRED: Upgrade settings
 MAX_UPGRADES_PER_CHECK = 10 # applies to both home and builder base

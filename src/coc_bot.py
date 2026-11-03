@@ -72,21 +72,23 @@ class CoC_Bot:
             pause = lambda: Pause_Handler.sleep(random.uniform(1.5, 6.0))
 
             update_status("now")
+            worked = False   # did this round fight a battle or start any upgrade?
 
             # Check home base
             if not skip_home_base_upgrades or not exclude_home_attacks:
                 to_home_base(ref_cache=True)
 
             if not skip_home_base_upgrades:
-                self.upgrader.run_home_base(exclude_home_base, exclude_home_lab)
+                worked |= bool(self.upgrader.run_home_base(exclude_home_base, exclude_home_lab))
                 pause()
             if not exclude_home_attacks:
-                self.attacker.run_home_base(restart=True)
+                worked |= bool(self.attacker.run_home_base(restart=True))
                 pause()
 
             # Check builder base
             if not skip_builder_base_upgrades or not exclude_builder_attacks:
                 to_builder_base(ref_cache=True)
+                worked = True   # its flows don't report back yet: never rest on them
 
             if not skip_builder_base_upgrades:
                 self.upgrader.collect_builder_attack_elixir()
@@ -95,8 +97,38 @@ class CoC_Bot:
             if not exclude_builder_attacks:
                 self.attacker.run_builder_base(restart=True)
 
-            # End of active cycle: do NOT stop CoC, just loop immediately back to check if toggles are still ON
             update_status(time.time())
+
+            # Busy rounds follow each other right away, CoC kept open. A round
+            # with nothing to do (storages full, builders and lab busy) closes
+            # CoC and rests: BlueStacks drawing the open game nonstop is what
+            # keeps the Mac hot (~75% CPU vs ~2% with CoC closed)
+            if not worked and not Task_Handler.rest_when_idle_excluded():
+                self.rest()
+                return
 
         # Varied idle between cycles (never a fixed heartbeat)
         Pause_Handler.sleep(random.uniform(2.5, 9.0))
+
+    def rest(self):
+        """Close CoC and wait the rest time (±15%), waking early when a
+        switch changes in the app (Pause still works as everywhere)."""
+        import time, random
+        minutes = Task_Handler.setting("rest_minutes", getattr(configs, "CHECK_INTERVAL", 5))
+        until = time.time() + max(1, minutes) * 60 * random.uniform(0.85, 1.15)
+        print(f"😴 Nothing to do this round: CoC closes until {time.strftime('%H:%M', time.localtime(until))} so the Mac stays cool")
+        stop_coc()
+        update_status("resting", until=until)
+
+        def switches():
+            try: return set(Task_Handler.get_exclusions())
+            except (KeyboardInterrupt, SystemExit): raise
+            except Exception: return None   # no app reachable: just rest
+        before = switches()
+        while (left := until - time.time()) > 0:
+            Pause_Handler.sleep(min(3, left))
+            now = switches()
+            if before is None: before = now
+            elif now is not None and now != before:
+                print("⏰ A switch changed in the app: checking right away")
+                return

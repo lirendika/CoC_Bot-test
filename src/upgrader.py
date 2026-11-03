@@ -989,9 +989,10 @@ class Upgrader:
                 except: break
             if wall_batches > 0: upgrades_started.append(f"{wall_batches} wall batch(es)")
 
+        helpers_assigned = False
         if not Task_Handler.builder_apprentice_excluded():
-            self.assign_builder_apprentice()
-        
+            helpers_assigned |= bool(self.assign_builder_apprentice())
+
         # Lab upgrades
         lab_upgrades_started = []
         try:
@@ -1003,11 +1004,13 @@ class Upgrader:
         except (KeyboardInterrupt, SystemExit): raise
         except: pass
         if not Task_Handler.lab_assistant_excluded():
-            self.assign_lab_assistant()
-        
+            helpers_assigned |= bool(self.assign_lab_assistant())
+
         for upgrade in upgrades_started + lab_upgrades_started:
             send_notification(f"Started upgrading {upgrade}")
-    
+        # Whether this check put anything to work (the bot rests when not)
+        return bool(upgrades_started or lab_upgrades_started or helpers_assigned)
+
     def run_builder_base(self, exclude_base=False, exclude_lab=False):
         import time
         

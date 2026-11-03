@@ -413,14 +413,16 @@ def send_notification(text):
         except (KeyboardInterrupt, SystemExit): raise
         except: pass
 
-def update_status(status):
+def update_status(status, **extra):
+    """Post the bot's status to the apps; extra fields ride along (e.g. the
+    end of a rest as until=<epoch>)."""
     import requests
-    
+
     if WEB_APP_URL != "":
         try:
             requests.post(
                 f"{WEB_APP_URL}/{INSTANCE_ID}/status",
-                json={"status": status},
+                json={"status": status, **extra},
                 timeout=(1, 2)
             )
         except (KeyboardInterrupt, SystemExit): raise
@@ -430,7 +432,7 @@ def update_status(status):
         try:
             requests.post(
                 f"http://localhost:{gui_port}/{INSTANCE_ID}/status",
-                json={"status": status},
+                json={"status": status, **extra},
                 timeout=(1, 2)
             )
         except (KeyboardInterrupt, SystemExit): raise
@@ -1273,6 +1275,17 @@ class Task_Handler:
         except (KeyboardInterrupt, SystemExit): raise
         except:
             return not configs.ASSIGN_BUILDER_APPRENTICE
+
+    @classmethod
+    def rest_when_idle_excluded(cls, **kwargs):
+        try:
+            exclusions = cls.get_exclusions(**kwargs)
+            if exclusions is not None:
+                return "rest_when_idle" in exclusions
+            raise Exception("No external exclusion source available")
+        except (KeyboardInterrupt, SystemExit): raise
+        except:
+            return not getattr(configs, "REST_WHEN_IDLE", True)
 
 class OCR_Handler:
     

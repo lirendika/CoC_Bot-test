@@ -28,6 +28,7 @@ class Instance:
     def __init__(self, id=None):
         self.id = id if id is not None else ""
         self.run_status = ""
+        self.rest_until = 0   # while resting: when the next check starts
         self.end_time = 0
         task_settings = {
             "heroes": not UPGRADE_HEROES,
@@ -44,6 +45,7 @@ class Instance:
             "wall_focus": not WALL_FOCUS,
             "lab_assistant": not ASSIGN_LAB_ASSISTANT,
             "builder_apprentice": not ASSIGN_BUILDER_APPRENTICE,
+            "rest_when_idle": not globals().get("REST_WHEN_IDLE", True),
         }
         self.exclusions = set(k for k, v in task_settings.items() if v) | UNAVAILABLE
         self.settings = {
@@ -51,7 +53,11 @@ class Instance:
             "min_loot_elixir": globals().get("MIN_LOOT_ELIXIR", 0),
             "min_loot_dark": globals().get("MIN_LOOT_DARK", 0),
             "wall_focus_min_storage_pct": globals().get("WALL_FOCUS_MIN_STORAGE_PCT", 50),
+            "rest_minutes": globals().get("CHECK_INTERVAL", 5),
         }
+
+# Allowed range of each numeric setting
+SETTING_LIMITS = {"wall_focus_min_storage_pct": (0, 100), "rest_minutes": (1, 240)}
 
 instances = {}
 
@@ -73,6 +79,7 @@ def handle_instance(id):
         end_time=instance.end_time,
         current_time=time.time(),
         run_status=instance.run_status,
+        rest_until=instance.rest_until,
         exclusions=list(instance.exclusions),
         unavailable=sorted(UNAVAILABLE),
         settings=instance.settings,
@@ -127,7 +134,8 @@ def handle_status(id):
     if request.method == "POST":
         data = request.json
         instance.run_status = data.get("status", "")
-    return {"status": instance.run_status}
+        instance.rest_until = data.get("until", 0)
+    return {"status": instance.run_status, "until": instance.rest_until}
 
 @app.route("/<id>/settings", methods=["GET", "POST"])
 def handle_settings(id):
@@ -136,8 +144,11 @@ def handle_settings(id):
     if request.method == "POST":
         for k, v in (request.json or {}).items():
             if k in instance.settings:
-                try: instance.settings[k] = int(v)
-                except (ValueError, TypeError): pass
+                try: value = int(v)
+                except (ValueError, TypeError): continue
+                low, high = SETTING_LIMITS.get(k, (0, None))
+                value = max(low, value)
+                instance.settings[k] = value if high is None else min(value, high)
     return {"settings": instance.settings}
 
 @app.route("/<id>/exclude", methods=["GET", "POST"])
