@@ -92,6 +92,7 @@ def enable_sleep():
         raise Exception("Unsupported OS")
 
 def to_system_home():
+    Pause_Handler.check()
     ADB_Manager.adbutils_device.shell("input keyevent KEYCODE_HOME")
 
 def file_search(root, target_name, keywords=[]):
@@ -127,20 +128,75 @@ def file_search(root, target_name, keywords=[]):
     return None
 
 def running():
-    import requests
-    
-    if WEB_APP_URL == "": return True
-    try:
-        response = requests.get(
-            f"{WEB_APP_URL}/{INSTANCE_ID}/running",
-            timeout=(1, 2)
-        )
-        if response.status_code == 200:
-            return response.json().get("running", False)
-        return False
+    """False while the user has the bot paused in the desktop or web app."""
+    if Pause_Handler.polling(): return not Pause_Handler.paused
+    try: return Pause_Handler.query()
     except Exception as e:
         if configs.DEBUG: print("running", e)
         return False
+
+class Bot_Paused(SystemExit):
+    """Raised by every touch, screen read and app command while the bot is
+    paused. It derives from SystemExit so the `except (KeyboardInterrupt,
+    SystemExit): raise` guards all over the bot pass it straight up to
+    CoC_Bot.run, which waits there and then starts its cycle over."""
+
+class Pause_Handler:
+    """The app's Pause button, enforced inside the bot. A background thread
+    polls /<id>/running a few times a second, and check() — called before
+    every tap, swipe, screenshot and app command — turns a pause into
+    Bot_Paused, lifting any finger still held so the user can play freely."""
+    paused = False
+    _thread = None
+
+    @staticmethod
+    def query():
+        import requests
+        if WEB_APP_URL != "":
+            url = f"{WEB_APP_URL}/{INSTANCE_ID}/running"
+        elif configs.LOCAL_GUI and TEMP_CACHE.get("gui_port") is not None:
+            url = f"http://localhost:{TEMP_CACHE['gui_port']}/{INSTANCE_ID}/running"
+        else:
+            return True
+        response = requests.get(url, timeout=(1, 2))
+        response.raise_for_status()
+        return response.json().get("running", False)
+
+    @classmethod
+    def polling(cls):
+        return cls._thread is not None
+
+    @classmethod
+    def start(cls):
+        import threading, time
+        if cls.polling(): return
+        interval = 0.25 if WEB_APP_URL == "" else 2
+        def poll():
+            while True:
+                # A failed request keeps the last state: a hiccup must not
+                # interrupt (or resume) the bot
+                try: cls.paused = not cls.query()
+                except Exception as e:
+                    if configs.DEBUG: print("Pause_Handler", e)
+                time.sleep(interval)
+        cls._thread = threading.Thread(target=poll, name="pause-poller", daemon=True)
+        cls._thread.start()
+
+    @classmethod
+    def check(cls):
+        if cls.paused:
+            Input_Handler.release_held()
+            raise Bot_Paused()
+
+    @classmethod
+    def sleep(cls, seconds):
+        """time.sleep that a pause cuts short."""
+        import time
+        end = time.time() + seconds
+        while (left := end - time.time()) > 0:
+            cls.check()
+            time.sleep(min(0.2, left))
+        cls.check()
 
 def click_with_timeout(locator_func, timeout=1, interval=0.1):
     import time
@@ -506,18 +562,55 @@ def get_home_builders(timeout=60, return_amount=True, raise_exception=True, use_
 def close_blocking_screens(use_cached_frame=False):
     """Close what click_exit can't, returning whether it tapped one: Google
     Play's "Rate Clash of Clans" dialog after a won battle (taps outside it do
-    nothing; tap LATER), and a defense or replay being watched — CoC opens on
+    nothing; tap LATER), a defense or replay being watched — CoC opens on
     one when the village is attacked while offline — whose "Return Home"
-    sits bottom left."""
+    sits bottom left, and a battle result's "Return Home" (a battle the bot
+    was paused in ends there)."""
     if not use_cached_frame: Frame_Handler.get_frame()
-    for name, what in (("dialog_later", "⭐ Closing the 'Rate Clash of Clans' dialog (Later)"),
-                       ("return_home_replay", "🏠 Leaving a defense/replay screen (Return Home)")):
-        x, y = Frame_Handler.locate(Asset_Manager.misc_assets[name], thresh=0.9, use_cached=True)
+    for assets, name, thresh, what in (
+        (Asset_Manager.misc_assets, "dialog_later", 0.9, "⭐ Closing the 'Rate Clash of Clans' dialog (Later)"),
+        (Asset_Manager.misc_assets, "return_home_replay", 0.9, "🏠 Leaving a defense/replay screen (Return Home)"),
+        (Asset_Manager.attacker_assets, "return_home_battle", 0.85, "🏠 Leaving a battle result (Return Home)"),
+        (Asset_Manager.attacker_assets, "return_home", 0.85, "🏠 Leaving a battle result (Return Home)"),
+    ):
+        x, y = Frame_Handler.locate(assets[name], thresh=thresh, use_cached=True)
         if x is not None and y is not None:
             print(what)
             Input_Handler.click(x, y)
             return True
     return False
+
+def leave_battle(timeout=240):
+    """Get out of a battle the bot was paused in without force-closing CoC,
+    which triggers CoC's attack cooldown, returning whether one was on screen.
+    Still scouting with nothing deployed ("End Battle" bottom left): leave
+    the base. Already fighting ("Surrender" there): let it play out, then
+    close_blocking_screens taps the result's Return Home."""
+    import time
+    assets = Asset_Manager.attacker_assets
+    x, y = Frame_Handler.locate(assets["end_battle"], thresh=0.9, use_cached=True)
+    if x is not None and y > 0.7:
+        print("⚔️ Leaving the base the bot was scouting (End Battle)")
+        Input_Handler.click(x, y)
+        Pause_Handler.sleep(1.5)
+        # A confirmation would repeat the button (or an Okay) mid-screen
+        Frame_Handler.get_frame()
+        for key in ("end_battle", "okay"):
+            cx, cy = Frame_Handler.locate(assets[key], thresh=0.85, use_cached=True)
+            if cx is not None and cy < 0.7:
+                Input_Handler.click(cx, cy)
+                break
+        Pause_Handler.sleep(2)
+        return True
+    x, y = Frame_Handler.locate(assets["surrender"], thresh=0.9, use_cached=True)
+    if x is None or y <= 0.7: return False
+    print("⚔️ A battle is still running: waiting for its result")
+    start = time.time()
+    while time.time() - start < timeout:
+        Pause_Handler.sleep(2)
+        Frame_Handler.get_frame()
+        if close_blocking_screens(use_cached_frame=True): break
+    return True
 
 def start_coc(timeout=60, force=True):
     import time
@@ -532,11 +625,15 @@ def start_coc(timeout=60, force=True):
         while time.time() - start < timeout:
             if not running(): return False
             force_flag = '-S' if (i == 0 and force) else ''
+            Pause_Handler.check()
             ADB_Manager.adbutils_device.shell(f"am start {force_flag} -W -n com.supercell.clashofclans/com.supercell.titan.GameApp")
             Input_Handler.click_exit(4, 0.1)
-            
+
             Frame_Handler.get_frame()
-            
+            if leave_battle():
+                start = time.time()   # the battle's minutes don't count
+                continue
+
             try:
                 get_home_builders(0, return_amount=False, use_cached_frame=True)
                 TEMP_CACHE["location"] = "home_base"
@@ -570,6 +667,7 @@ def start_coc(timeout=60, force=True):
 
 def stop_coc():
     from datetime import datetime
+    Pause_Handler.check()
     print("Stopping CoC...", datetime.now().strftime("%I:%M:%S %p %m-%d-%Y"))
     ADB_Manager.adbutils_device.shell("am force-stop com.supercell.clashofclans")
     to_system_home()
@@ -577,6 +675,7 @@ def stop_coc():
 
 def update_coc(timeout=10, from_in_game=False):
     import uiautomator2 as u2
+    Pause_Handler.check()
     conn = ADB_Manager.uiautomator_device
     if not from_in_game:
         ADB_Manager.adbutils_device.shell('am start -a android.intent.action.VIEW -d "market://details?id=com.supercell.clashofclans"')
@@ -1434,9 +1533,24 @@ class ADB_Manager:
         return DeviceProxy(cls, "_uiautomator_device")
 
 class Input_Handler:
+    _held = set()   # pointers down() pressed that up() hasn't released yet
+
+    @classmethod
+    def release_held(cls):
+        """Lift every finger down() left on the screen (never pause-checked)."""
+        from pyminitouch import CommandBuilder
+        for pointer in list(cls._held):
+            try:
+                builder = CommandBuilder()
+                builder.up(pointer)
+                builder.publish(ADB_Manager.minitouch_device.connection)
+            except Exception: pass
+            cls._held.discard(pointer)
+
     @classmethod
     def down(cls, x, y, pointer=0):
         from pyminitouch import CommandBuilder
+        Pause_Handler.check()
         if x < 0: x = 1 + x
         if y < 0: y = 1 + y
         MAX_X = int(ADB_Manager.minitouch_device.connection.max_x)
@@ -1446,6 +1560,7 @@ class Input_Handler:
         builder = CommandBuilder()
         builder.down(pointer, x, y, 100)
         builder.publish(ADB_Manager.minitouch_device.connection)
+        cls._held.add(pointer)
 
     @classmethod
     def up(cls, pointer=0):
@@ -1453,6 +1568,7 @@ class Input_Handler:
         builder = CommandBuilder()
         builder.up(pointer)
         builder.publish(ADB_Manager.minitouch_device.connection)
+        cls._held.discard(pointer)
 
     @classmethod
     def move(cls, x, y, pointer=0, pressure=None):
@@ -1461,6 +1577,7 @@ class Input_Handler:
         independently — used by the two-finger spam-event hold-drag."""
         import numpy as np
         from pyminitouch import CommandBuilder
+        Pause_Handler.check()
         if x < 0: x = 1 + x
         if y < 0: y = 1 + y
         MAX_X = int(ADB_Manager.minitouch_device.connection.max_x)
@@ -1499,6 +1616,7 @@ class Input_Handler:
         x = int(x * MAX_X)
         y = int(y * MAX_Y)
         for _ in range(n):
+            Pause_Handler.check()
             if cls.HUMANIZE:
                 time.sleep(float(np.random.uniform(0.02, 0.09)))
                 # Re-jitter each repeat by a few pixels
@@ -1522,6 +1640,7 @@ class Input_Handler:
 
     @classmethod
     def multi_click(cls, x1, y1, x2, y2, duration=0):
+        Pause_Handler.check()
         MAX_X = int(ADB_Manager.minitouch_device.connection.max_x)
         MAX_Y = int(ADB_Manager.minitouch_device.connection.max_y)
         ADB_Manager.minitouch_device.tap([(x1*MAX_X, y1*MAX_Y), (x2*MAX_X, y2*MAX_Y)], duration=duration)
@@ -1531,6 +1650,7 @@ class Input_Handler:
         import time, numpy as np
         from pyminitouch import CommandBuilder
         
+        Pause_Handler.check()   # a started swipe runs to its end
         if x1 < 0: x1 = 1 + x1
         if y1 < 0: y1 = 1 + y1
         if x2 < 0: x2 = 1 + x2
@@ -1593,6 +1713,7 @@ class Input_Handler:
     @classmethod
     def zoom(cls, dir="out", percent=1.0):
         from pyminitouch import CommandBuilder
+        Pause_Handler.check()
         
         builder = CommandBuilder()
         
@@ -1650,6 +1771,7 @@ class Frame_Handler:
         if use_cached and cls.cached_frame is not None:
             frame = cls.cached_frame.copy()
         else:
+            Pause_Handler.check()
             try: frame = ADB_Manager.adbutils_device.framebuffer() # faster than screenshot but potentially unstable
             except (KeyboardInterrupt, SystemExit): raise
             except: frame = ADB_Manager.adbutils_device.screenshot()

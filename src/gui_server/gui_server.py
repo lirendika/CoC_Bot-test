@@ -11,11 +11,18 @@ sys.path.append(str(path))
 
 import os
 import time
-from flask import Flask, render_template, jsonify, abort, request
+from flask import Flask, render_template, jsonify, abort, request, send_from_directory
 from configs import *
 
 app = Flask(__name__)
 bot_pipe = None
+
+# The game's own fonts, from the bot's assets (bundled next to gui_server)
+FONTS_DIR = (Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else path.parent.parent) / "assets" / "fonts"
+
+# Tasks not adapted to the current CoC UI yet: the app shows them locked and
+# they stay excluded, whatever configs.py says
+UNAVAILABLE = {"builder_base", "builder_base_priority", "builder_lab", "builder_lab_priority", "builder_attacks"}
 
 class Instance:
     def __init__(self, id=None):
@@ -38,7 +45,7 @@ class Instance:
             "lab_assistant": not ASSIGN_LAB_ASSISTANT,
             "builder_apprentice": not ASSIGN_BUILDER_APPRENTICE,
         }
-        self.exclusions = set(k for k, v in task_settings.items() if v)
+        self.exclusions = set(k for k, v in task_settings.items() if v) | UNAVAILABLE
         self.settings = {
             "min_loot_gold": globals().get("MIN_LOOT_GOLD", 0),
             "min_loot_elixir": globals().get("MIN_LOOT_ELIXIR", 0),
@@ -67,8 +74,13 @@ def handle_instance(id):
         current_time=time.time(),
         run_status=instance.run_status,
         exclusions=list(instance.exclusions),
+        unavailable=sorted(UNAVAILABLE),
         settings=instance.settings,
     )
+
+@app.route("/fonts/<name>", methods=["GET"])
+def handle_font(name):
+    return send_from_directory(FONTS_DIR, name, max_age=86400)
 
 @app.route("/instance", methods=["POST"])
 def handle_instance_start_stop():
@@ -138,7 +150,7 @@ def handle_exclude(id):
         item = data.get("item", "")
         if action == "add":
             instance.exclusions.add(item)
-        elif action == "remove":
+        elif action == "remove" and item not in UNAVAILABLE:
             instance.exclusions.discard(item)
     return {"exclusions": sorted(list(instance.exclusions))}
 

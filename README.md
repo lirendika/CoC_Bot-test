@@ -19,7 +19,7 @@
 
 ## Quality of Life Features
 * View bot status on desktop or web app 🚦
-* Resume / pause bot execution from desktop or web app ⏯️
+* Pause from the desktop or web app stops every bot touch at once, so you can play yourself; Resume starts the bot over ⏯️
 * iPhone shortcut to auto resume / pause bot when CoC is opened by user ⏯️
 * Telegram and web app notifications 🔔
 * Automatic CoC app updates 🔼
@@ -98,4 +98,5 @@ Game updates move buttons and restyle screens. [tests/ui_frames](tests/ui_frames
 * `python scripts/panel_eval.py` and `python scripts/loot_eval.py` check the bot's screen readers (upgrade panel, storage bars, battle result, dialogs, loot) against those frames; exit code 0 means all agree
 * `python scripts/ui_probe.py <screenshot> scan` scores every template on a screenshot, and `eval "<expression>"` runs any bot function on it
 * `python scripts/capture_frame.py <folder/name>` saves the live BlueStacks screen as a new reference frame
+* `python scripts/pause_eval.py` checks with a fake device that a Pause lets no tap, swipe, screenshot or app command through and that the bot then starts over
 * `python scripts/upgrade_dryrun.py` drives the real upgrade flows on the live game while blocking every tap that would spend resources (`upgrade_dryrun.py helpers` walks the Builder's Apprentice and Lab Assistant flows up to their blocked Confirm while both are idle)

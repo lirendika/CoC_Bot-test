@@ -61,7 +61,7 @@ class Attacker:
             x, y = self._locate_return_home()
             if x is not None and y is not None:
                 Input_Handler.click(x, y)
-                time.sleep(3)
+                Pause_Handler.sleep(3)
                 close_blocking_screens()
                 return True
             # Dismiss intermediate popups (e.g. star bonus / achievements)
@@ -85,7 +85,7 @@ class Attacker:
                         print("⏩ Clicked 1x speed-up button → 4x")
                 except (KeyboardInterrupt, SystemExit): raise
                 except: pass
-            time.sleep(poll * np.random.uniform(0.7, 1.6))
+            Pause_Handler.sleep(poll * np.random.uniform(0.7, 1.6))
         return False
 
     def start_normal_attack(self, timeout=60):
@@ -1457,7 +1457,7 @@ class Attacker:
                     hero_cards.append(cc[i])
 
             if troop_idxs or hero_idxs:
-                time.sleep(np.random.uniform(1.5, 3.0))  # let them walk in
+                Pause_Handler.sleep(np.random.uniform(1.5, 3.0))  # let them walk in
 
             # 3) rage spells: spread ONCE per battle, in random drop order
             spell_idxs = [i for i in range(len(cc))
@@ -1608,7 +1608,7 @@ class Attacker:
                 return
             print(f"⏭️ Loot too low ({_fmt(loot)}) — Next ({i + 1}/{max_nexts})")
             Input_Handler.click(0.915, 0.72) # "Next" button (bottom-right)
-            time.sleep(float(np.random.uniform(4.0, 6.5))) # cloud transition
+            Pause_Handler.sleep(float(np.random.uniform(4.0, 6.5))) # cloud transition
         print("⚠️ Loot minimums never met — attacking the current base")
 
     # ============================================================

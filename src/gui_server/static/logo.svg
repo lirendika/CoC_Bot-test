@@ -1,44 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="CoC Bot">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CoC Bot">
   <defs>
-    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#33415f"/>
-      <stop offset="1" stop-color="#141a29"/>
+    <linearGradient id="steelL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dde6ee"/>
     </linearGradient>
-    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffe27a"/>
-      <stop offset="0.45" stop-color="#fbc63f"/>
-      <stop offset="1" stop-color="#e79a1f"/>
+    <linearGradient id="steelR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b3c2cf"/>
+      <stop offset="1" stop-color="#8396a8"/>
     </linearGradient>
-    <linearGradient id="visorGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1b2438"/>
-      <stop offset="1" stop-color="#0a0e18"/>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff0a0"/>
+      <stop offset="0.45" stop-color="#ffc93c"/>
+      <stop offset="1" stop-color="#d9800f"/>
     </linearGradient>
-    <linearGradient id="eyeGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#8df3ff"/>
-      <stop offset="1" stop-color="#25b9e8"/>
+    <linearGradient id="leather" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a8682e"/>
+      <stop offset="1" stop-color="#6b3a14"/>
     </linearGradient>
+    <radialGradient id="gem" cx="0.38" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#ff9a8a"/>
+      <stop offset="0.5" stop-color="#e8342a"/>
+      <stop offset="1" stop-color="#8c1010"/>
+    </radialGradient>
+    <radialGradient id="pommel" cx="0.38" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#fff3b0"/>
+      <stop offset="0.5" stop-color="#ffc63a"/>
+      <stop offset="1" stop-color="#c8720c"/>
+    </radialGradient>
   </defs>
 
-  <!-- badge -->
-  <rect width="128" height="128" rx="30" fill="url(#bgGrad)"/>
-  <rect x="3" y="3" width="122" height="122" rx="27.5" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+  <g transform="rotate(45 256 256)" stroke="#1d1a17" stroke-linejoin="round" stroke-linecap="round">
+    <!-- grip -->
+    <rect x="236" y="384" width="40" height="104" rx="8" fill="url(#leather)" stroke-width="12"/>
+    <path d="M238 404 L274 392 M238 430 L274 418 M238 456 L274 444 M238 482 L274 470" stroke="#4a260b" stroke-width="7" fill="none"/>
 
-  <!-- crown -->
-  <path d="M30 47 V25.5 L46.5 37 L64 18 L81.5 37 L98 25.5 V47 Z" fill="url(#goldGrad)"/>
-  <circle cx="30" cy="24" r="4.6" fill="#ffe89a"/>
-  <circle cx="64" cy="16.5" r="5.4" fill="#ffe89a"/>
-  <circle cx="98" cy="24" r="4.6" fill="#ffe89a"/>
+    <!-- blade: light left bevel, darker right bevel, one outline around both -->
+    <path d="M256 -40 L292 22 L292 354 L256 354 Z" fill="url(#steelR)" stroke="none"/>
+    <path d="M256 -40 L220 22 L220 354 L256 354 Z" fill="url(#steelL)" stroke="none"/>
+    <path d="M256 -2 L256 330" stroke="#7f93a6" stroke-width="6" fill="none"/>
+    <path d="M232 30 L232 336" stroke="#ffffff" stroke-width="6" stroke-opacity="0.9" fill="none"/>
+    <path d="M256 -40 L292 22 L292 354 L220 354 L220 22 Z" fill="none" stroke-width="14"/>
 
-  <!-- head -->
-  <rect x="26" y="46" width="76" height="56" rx="17" fill="url(#goldGrad)"/>
-  <rect x="15" y="62" width="11" height="22" rx="5.5" fill="#e79a1f"/>
-  <rect x="102" y="62" width="11" height="22" rx="5.5" fill="#e79a1f"/>
+    <!-- crossguard with a ruby -->
+    <path d="M150 352 Q150 336 168 340 L344 340 Q362 336 362 352 L362 382 Q362 398 344 394 L168 394 Q150 398 150 382 Z" fill="url(#gold)" stroke-width="13"/>
+    <path d="M170 352 L342 352" stroke="#fff6c8" stroke-width="6" stroke-opacity="0.9" fill="none"/>
+    <circle cx="256" cy="367" r="17" fill="url(#gem)" stroke-width="8"/>
 
-  <!-- visor -->
-  <rect x="35" y="58" width="58" height="32" rx="14" fill="url(#visorGrad)"/>
-  <rect x="47" y="67" width="12" height="14" rx="6" fill="url(#eyeGrad)"/>
-  <rect x="69" y="67" width="12" height="14" rx="6" fill="url(#eyeGrad)"/>
-
-  <!-- chin plate -->
-  <rect x="52" y="102" width="24" height="7" rx="3.5" fill="#e79a1f"/>
+    <!-- pommel -->
+    <circle cx="256" cy="512" r="30" fill="url(#pommel)" stroke-width="13"/>
+    <circle cx="246" cy="502" r="8" fill="#fffbe0" stroke="none" fill-opacity="0.9"/>
+  </g>
 </svg>
