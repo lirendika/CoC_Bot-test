@@ -299,39 +299,158 @@ def fix_digits(text):
         return [fix_digits(t) for t in text]
     return text.lower().replace('o', '0').replace('/', '1').replace('i', '1').replace('z', '2').replace('s', '5').replace('b', '6').replace('j', '7').replace('&', '8')
 
-# CoC 18.647 (2026-11) fills the resource bars from the icon leftwards over a
-# see-through track (x 1497-1869 @1080p). The digits cover the bar's middle,
-# so the fill edge is read on the rows just under its top edge.
-STORAGE_TRACK = (1497, 1869)
-STORAGE_BAR_ROWS = {"gold": (36, 41), "elixir": (109, 117)}
+class Storage_Reader:
+    """How much gold, elixir and dark elixir the village holds and how full
+    each storage is, from the resource counters top right (CoC 18.647,
+    2026-11).
 
-def get_storage_fill_levels():
-    """How full the gold and elixir storages are (0.0-1.0), measured on the
-    fill bars behind the resource counters (top right)."""
-    import cv2, numpy as np
+    The amounts are the counters' digits, read glyph by glyph (exact). The
+    counters show no capacity, so it is learned from the bar behind them.
+    CoC draws the fill in flat colours from under the icon leftwards, with a
+    sharp left end and a highlight along it, so a column is fill exactly
+    when its rows above and below the digits show the colours of the fill
+    beside the icon (or those plus the highlight). Scenery seen through the
+    see-through track never does on every row; the old colour-range test
+    ran on over pink crystals and yellow roofs behind the track (6% too
+    full on one frame). amount / bar is the capacity, the median of the
+    recent estimates that agree smooths out the bar's 1-pixel steps, and
+    the level is then amount / capacity."""
 
-    hsv = cv2.cvtColor(Frame_Handler.get_frame(grayscale=False), cv2.COLOR_RGB2HSV).astype(int)
-    H, S, V = hsv[..., 0], hsv[..., 1], hsv[..., 2]
-    masks = {
-        "gold": (H >= 15) & (H <= 35) & (S >= 120) & (V >= 150),
-        "elixir": (H >= 140) & (H <= 175) & (S >= 80) & (V >= 120),
+    # Pixels at WINDOW_DIMS on the village; the attack screen draws the
+    # counters 2 px further right, which shows in where each icon starts.
+    # Per bar: the rows inside it above and below the digits, the digits'
+    # band, a row of its black outline above and below, the fill colour
+    # beside the icon, the x of an empty bar's (zero) and of a full bar's
+    # (full) fill edge, and where the icon starts. zero is fitted on the 14
+    # frames in tests/ui_frames that show the counters (gold ~26.2M,
+    # elixir ~26.1M, dark ~446k)
+    BARS = {
+        "gold":   dict(rows=(*range(36, 43), *range(72, 83)), digits=(35, 85), outline=(34, 84),
+                       color=(231, 192, 13), zero=1866.5, full=1495.5, icon=1842),
+        "elixir": dict(rows=(*range(110, 117), *range(146, 156)), digits=(105, 158), outline=(108, 158),
+                       color=(192, 39, 192), zero=1866.5, full=1495.5, icon=1845),
+        "dark":   dict(rows=(*range(184, 191), *range(219, 231)), digits=(178, 232), outline=(182, 232),
+                       color=(39, 13, 51), zero=1861.8, full=1594, icon=1846),
     }
-    left, right = STORAGE_TRACK
-    levels = {}
-    for name, (y0, y1) in STORAGE_BAR_ROWS.items():
-        edges = []
-        for row in masks[name][y0:y1 + 1]:
-            # Walk left from the icon while the fill goes on (gaps up to 4px);
-            # nothing next to the icon means a nearly empty storage
-            x = edge = right - 9
-            if row[x]:
-                while x > left - 3 and edge - x <= 4:
-                    if row[x]: edge = x
-                    x -= 1
-            else: edge = right
-            edges.append(edge)
-        levels[name] = min(1.0, max(0.0, (right - float(np.median(edges))) / (right - left)))
-    return levels
+    REF_X = (1826, 1837)     # always fill: right of the digits, left of the icon
+    DIGITS_X = (1480, 1838)
+    MAX_AMOUNT = {"gold": 100_000_000, "elixir": 100_000_000, "dark": 2_000_000}
+    _estimates = {}          # resource -> recent capacity estimates (this bot run)
+    _unconfirmed = {}        # resource -> an estimate that disagreed with them
+
+    @classmethod
+    def reset(cls):
+        cls._estimates, cls._unconfirmed = {}, {}
+
+    @classmethod
+    def _on_screen(cls, f, name):
+        """The bar's black outline runs unbroken above and below it: the
+        counter is on screen, not dimmed by a popup or covered by a panel."""
+        import numpy as np
+        b = cls.BARS[name]
+        lines = f[list(b["outline"]), int(b["full"]) + 25:cls.REF_X[0] - 6]
+        return (np.abs(lines - 13).max(axis=2) <= 4).mean() >= 0.9
+
+    @classmethod
+    def _bar(cls, f, name, tol=10):
+        """How full the bar is (0-1) from where its fill ends, or None when
+        the fill beside the icon isn't drawn as CoC draws it (dimmed, hazed,
+        covered, or too little fill to reach there)."""
+        import numpy as np
+        b = cls.BARS[name]
+        rows = list(b["rows"])
+        ref = np.median(f[rows, cls.REF_X[0]:cls.REF_X[1]], axis=1)
+        if np.abs(ref[[0, -1]] - b["color"]).max() > 12: return None
+        # Where the icon starts, against this frame's own fill colours
+        starts = []
+        for i, r in enumerate(rows):
+            off = np.nonzero(np.abs(f[r, cls.REF_X[1]:cls.REF_X[1] + 30] - ref[i]).max(axis=1) > 20)[0]
+            if len(off): starts.append(cls.REF_X[1] + off[0])
+        if not starts: return None
+        shift = float(np.median(starts)) - b["icon"]
+        if abs(shift) > 6: return None
+
+        # Walk left while the column is fill: every channel at the fill colour
+        # or raised by one and the same amount (the highlight at its end)
+        x, edge, misses = cls.REF_X[1] - 1, None, 0
+        while x >= b["full"] + shift - 3 and misses <= 2:
+            column = f[rows, x]
+            d = column - ref
+            free = column < 250          # channels the highlight didn't clip
+            spread = np.where(free, d, -999).max(axis=1) - np.where(free, d, 999).min(axis=1)
+            spread = np.where(free.any(axis=1), spread, 0)
+            fill = (d.min(axis=1) >= -tol) & (d.max(axis=1) <= 75) & (spread <= tol)
+            if fill.mean() >= 0.85: edge, misses = x, 0
+            else: misses += 1
+            x -= 1
+        if edge is None: return None
+        # The track's rounded end clips a full bar's fill on these rows
+        if edge <= b["full"] + shift + 5: return 1.0
+        return min(1.0, max(0.0, (b["zero"] + shift - edge) / (b["zero"] - b["full"])))
+
+    @classmethod
+    def _amount(cls, frame, name):
+        y0, y1 = cls.BARS[name]["digits"]
+        value = Digit_Reader.read(frame[y0:y1, cls.DIGITS_X[0]:cls.DIGITS_X[1]])
+        return value if value is not None and value <= cls.MAX_AMOUNT[name] else None
+
+    @classmethod
+    def _capacity(cls, name, amount, bar):
+        """Fold this reading's amount / bar into the storage's capacity;
+        returns the capacity (median of the agreeing estimates) or None. An
+        estimate more than 3% off (another account, an upgraded storage, a
+        misread digit) only replaces them once a second one agrees with it."""
+        import statistics
+        known = cls._estimates.setdefault(name, [])
+        if amount and bar is not None and 0.25 <= bar < 0.98:
+            estimate = amount / bar
+            if not known or abs(estimate / statistics.median(known) - 1) <= 0.03:
+                known.append(estimate)
+                del known[:-7]
+                cls._unconfirmed.pop(name, None)
+            else:
+                other = cls._unconfirmed.pop(name, None)
+                if other and abs(estimate / other - 1) <= 0.03: known[:] = [other, estimate]
+                else: cls._unconfirmed[name] = estimate
+        return statistics.median(known) if known else None
+
+    @classmethod
+    def read(cls, frame=None):
+        """{"gold"|"elixir"|"dark": {"amount", "capacity", "level"}}, each None
+        when unreadable. level (0-1) is amount / capacity once the capacity is
+        known and the bar agrees with it, else what the bar shows."""
+        if frame is None: frame = Frame_Handler.get_frame(grayscale=False)
+        f = frame.astype(int)
+        out = {}
+        for name in cls.BARS:
+            amount = bar = None
+            if cls._on_screen(f, name):
+                amount, bar = cls._amount(frame, name), cls._bar(f, name)
+            capacity = cls._capacity(name, amount, bar)
+            level = bar
+            if amount is not None and capacity:
+                level = min(1.0, amount / capacity)
+                # A misread digit, or a capacity that just changed: trust the bar
+                if bar is not None and abs(level - bar) > 0.03: level = bar
+            out[name] = {"amount": amount, "capacity": round(capacity) if capacity else None, "level": level}
+        return out
+
+    @staticmethod
+    def describe(levels, names=("gold", "elixir", "dark")):
+        """'gold 9,388,101 of ~26.2M (36%), ...' for the log."""
+        parts = []
+        for name in names:
+            r = levels.get(name) or {}
+            if r.get("amount") is None and r.get("level") is None:
+                parts.append(f"{name} unreadable")
+                continue
+            text = name if r.get("amount") is None else f"{name} {r['amount']:,}"
+            capacity = r.get("capacity")
+            if capacity:
+                text += f" of ~{capacity / 1e6:.1f}M" if capacity >= 1e6 else f" of ~{capacity / 1e3:.0f}k"
+            if r.get("level") is not None: text += f" ({r['level']:.0%})"
+            parts.append(text)
+        return ", ".join(parts)
 
 def parse_time(text):
     import re

@@ -1,5 +1,5 @@
 {
-  "_about": "Reference screenshots (1920x1080, lossless WebP = pixel-exact) for testing the bot offline: scripts/ui_probe.py runs the bot's real detection code on a frame, scripts/loot_eval.py scores the loot reader on every frame with a 'loot' entry, scripts/panel_eval.py checks the upgrade panel, storage bars, battle result and dialog readers on every frame. Folders are named after the CoC UI they show; capture new ones with scripts/capture_frame.py and describe them here. Take templates and thresholds from these real captures, never from screen recordings (compression shifts colours).",
+  "_about": "Reference screenshots (1920x1080, lossless WebP = pixel-exact) for testing the bot offline: scripts/ui_probe.py runs the bot's real detection code on a frame, scripts/loot_eval.py scores the loot reader on every frame with a 'loot' entry, scripts/panel_eval.py checks the upgrade panel, battle result and dialog readers on every frame, scripts/storage_eval.py the resource counters (gold, elixir, dark elixir: 'resources' and 'storage', how full each storage is) on every frame. Folders are named after the CoC UI they show; capture new ones with scripts/capture_frame.py and describe them here. Take templates and thresholds from these real captures, never from screen recordings (compression shifts colours).",
   "frames": {
     "old_ui_2026-07/attack_1.webp": {
       "screen": "Attack scouting screen, pre-update UI",
@@ -45,11 +45,17 @@
       "screen": "'Welcome Back Chief!' popup on game start. The bot's click_exit (tap 0.99,0.99) dismisses it without opening Build; the 'okay' template only scores 0.63 here"
     },
     "coc_18.647_2026-11/home.webp": {
-      "screen": "Home village. Builder (0/7) and lab (1/2) counters moved from top-center to bottom-right above Build; utils.read_counter reads them at HOME_BUILDER_COUNTER / HOME_LAB_COUNTER. Gold 9 388 101, elixir 13 935 650; the resource bars now fill from the icon leftwards (storage = amount / capacity; both capacities are ~25.75M (4 storages + Town Hall), fitted from the two home frames)",
+      "screen": "Home village. Builder (0/7) and lab (1/2) counters moved from top-center to bottom-right above Build; utils.read_counter reads them at HOME_BUILDER_COUNTER / HOME_LAB_COUNTER. Gold 9 388 101, elixir 13 935 650; the resource bars now fill from the icon leftwards (storage = amount / capacity: gold ~26.25M, elixir ~26.14M, dark ~446k, fitted on the 14 frames that show the counters)",
       "storage": {
-        "gold": 0.365,
-        "elixir": 0.541
-      }
+        "gold": 0.358,
+        "elixir": 0.533,
+        "dark": 0.186
+      },
+      "resources": [
+        9388101,
+        13935650,
+        83017
+      ]
     },
     "coc_18.647_2026-11/build_panel.webp": {
       "screen": "Build button (or either counter) opens a right-side 'Buildings & Heroes' panel that replaces the old top builder menu. Tabs at the bottom: builders, research, crafting station, pets. Close with its X (0.983,0.031) or a tap outside",
@@ -141,7 +147,17 @@
       "dialog": true
     },
     "coc_18.647_2026-11/wall_selected.webp": {
-      "screen": "Wall action bar: Info, Select Row, Upgrade More, Upgrade (gold), Upgrade (elixir), and a blue Upgrade (Wall Ring x4). _wall_upgrade_buttons finds only the gold and elixir buttons (both 'white'); the Wall Ring button is not matched"
+      "screen": "Wall action bar: Info, Select Row, Upgrade More, Upgrade (gold), Upgrade (elixir), and a blue Upgrade (Wall Ring x4). _wall_upgrade_buttons finds only the gold and elixir buttons (both 'white'); the Wall Ring button is not matched",
+      "resources": [
+        9388101,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.358,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/battle_menu.webp": {
       "screen": "Battle menu: 'Battle - Find a Match' (1600 gold) and 'Ranked Battle' cards; find_a_match template matches 1.0"
@@ -155,7 +171,17 @@
         48295,
         64885,
         4660
-      ]
+      ],
+      "resources": [
+        9386501,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.358,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/attack_2.webp": {
       "screen": "Attack scouting screen, post-update UI, jungle scenery",
@@ -163,7 +189,17 @@
         259163,
         232320,
         4278
-      ]
+      ],
+      "resources": [
+        9384901,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.358,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/attack_3.webp": {
       "screen": "Attack scouting screen, post-update UI, forest scenery",
@@ -171,7 +207,17 @@
         227937,
         464917,
         5469
-      ]
+      ],
+      "resources": [
+        9383301,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.357,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/attack_4.webp": {
       "screen": "Attack scouting screen, post-update UI, 7-digit gold and elixir",
@@ -179,21 +225,61 @@
         1138623,
         1178717,
         3952
-      ]
+      ],
+      "resources": [
+        9381701,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.357,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/attack_5.webp": {
-      "screen": "Attack scouting screen, post-update UI",
+      "screen": "Attack scouting screen, post-update UI; pink crystals behind the elixir bar's see-through track (the colour-range storage reader read that bar 6% too full)",
       "loot": [
         868110,
         872449,
         10042
-      ]
+      ],
+      "resources": [
+        9380101,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.357,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/attack_card_selected.webp": {
-      "screen": "Scouting screen with the first troop card selected, so the red no-deploy border is drawn (for redline / spam-event work)"
+      "screen": "Scouting screen with the first troop card selected, so the red no-deploy border is drawn (for redline / spam-event work)",
+      "resources": [
+        9380101,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.357,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/after_end_battle.webp": {
-      "screen": "Village right after End Battle on the scouting screen (no troops deployed)"
+      "screen": "Village right after End Battle on the scouting screen (no troops deployed)",
+      "resources": [
+        9380101,
+        13935650,
+        83017
+      ],
+      "storage": {
+        "gold": 0.357,
+        "elixir": 0.533,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/build_panel_scroll_0.webp": {
       "screen": "'Buildings & Heroes' panel, scrolled top to bottom one swipe (500px) per frame. Contains in-progress rows (green bars), the 'Suggested upgrades' / 'Other upgrades' headers, green 'New' names, red (unaffordable) prices, 'Wall x 325', 'Builder's Hut x 5', and locked heroes with a lock icon at the very end (scroll 0 of 8)",
@@ -506,10 +592,30 @@
       }
     },
     "coc_18.647_2026-11/wall_selected_after_panel_close.webp": {
-      "screen": "Same wall still selected after closing the panel with its X: single-row wall bar again. assets/upgrader/wall_upgrade_more.png is cropped from this frame (1.0 here, 0.993 on wall_selected); wall_upgrade 0.96"
+      "screen": "Same wall still selected after closing the panel with its X: single-row wall bar again. assets/upgrader/wall_upgrade_more.png is cropped from this frame (1.0 here, 0.993 on wall_selected); wall_upgrade 0.96",
+      "resources": [
+        9557789,
+        14113310,
+        83017
+      ],
+      "storage": {
+        "gold": 0.364,
+        "elixir": 0.54,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/wall_upgrade_more_stepper.webp": {
-      "screen": "Wall stepper after 'Upgrade More': Remove Wall -1 and Add Wall +10 disabled (salmon labels), Add Wall +1 enabled (white), gold/elixir Upgrade, Wall Ring. wall_add finds +1; _wall_upgrade_buttons finds gold and elixir as 'white'"
+      "screen": "Wall stepper after 'Upgrade More': Remove Wall -1 and Add Wall +10 disabled (salmon labels), Add Wall +1 enabled (white), gold/elixir Upgrade, Wall Ring. wall_add finds +1; _wall_upgrade_buttons finds gold and elixir as 'white'",
+      "resources": [
+        9557789,
+        14113310,
+        83017
+      ],
+      "storage": {
+        "gold": 0.364,
+        "elixir": 0.54,
+        "dark": 0.186
+      }
     },
     "coc_18.647_2026-11/wall_pay_gold_confirm.webp": {
       "screen": "'Upgrade Walls' confirmation for 3150000 Gold with Cancel / Okay; the attacker 'okay' template matches 1.0. Cancelled while capturing, nothing spent"
@@ -533,18 +639,30 @@
       "screen": "Confirm pressed on a wall's upgrade dialog with every builder busy (0/7): 'All builders are busy! Complete the previous building and free up a builder?' with a 104-gem button mid-screen. Nothing is spent until that button is pressed; one corner tap (click_exit) closes the popup. assets/upgrader/builders_busy.png is its title (1.0 here, <=0.39 on every other frame); Upgrader._builders_busy closes it. The popup dims the dialog behind, so dialog_open reads False, while its Confirm still matches 0.879"
     },
     "coc_18.647_2026-11/home_2.webp": {
-      "screen": "Home village after a raid: gold 9 433 574, elixir 10 942 467, builders 0/7, lab 0/2 (storage = amount / capacity; both capacities are ~25.75M (4 storages + Town Hall), fitted from the two home frames)",
+      "screen": "Home village after a raid: gold 9 433 574, elixir 10 942 467, builders 0/7, lab 0/2 (storage = amount / capacity: gold ~26.25M, elixir ~26.14M, dark ~446k, fitted on the 14 frames that show the counters)",
       "storage": {
-        "gold": 0.366,
-        "elixir": 0.425
-      }
+        "gold": 0.359,
+        "elixir": 0.419,
+        "dark": 0.204
+      },
+      "resources": [
+        9433574,
+        10942467,
+        91112
+      ]
     },
     "coc_18.647_2026-11/home_zoomed_out.webp": {
       "screen": "Home village zoomed fully out (as run_home_base leaves it), dark event scenery behind the see-through bar tracks: gold 15 678 283, elixir 18 384 948, builders 0/7, lab 0/2",
       "storage": {
-        "gold": 0.609,
-        "elixir": 0.714
-      }
+        "gold": 0.597,
+        "elixir": 0.703,
+        "dark": 0.269
+      },
+      "resources": [
+        15678283,
+        18384948,
+        119758
+      ]
     },
     "coc_18.647_2026-11/practice_result.webp": {
       "screen": "Practice battle result (Victory 100%): 'Play Again' and 'Return Home' side by side mid-screen; the old return_home template matches this button 0.997 (return_home_battle only 0.74)",
@@ -588,7 +706,7 @@
       ]
     },
     "coc_18.647_2026-11/attack_6.webp": {
-      "screen": "Attack scouting screen, post-update UI, forest scenery",
+      "screen": "Attack scouting screen, post-update UI, forest scenery. The clearing clouds haze the resource counters top right (their black outline washes out), so Storage_Reader reads nothing here rather than guess",
       "loot": [
         892090,
         806935,
@@ -601,7 +719,17 @@
         1115826,
         1478475,
         13623
-      ]
+      ],
+      "resources": [
+        11452620,
+        20951084,
+        179459
+      ],
+      "storage": {
+        "gold": 0.436,
+        "elixir": 0.801,
+        "dark": 0.402
+      }
     },
     "coc_18.647_2026-11/next_transition.webp": {
       "screen": "The flame transition right after Next (it can outlast the 4-6.5 s wait): the loot reader must return None, not guess",

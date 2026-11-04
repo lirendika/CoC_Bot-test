@@ -1615,17 +1615,15 @@ class Attacker:
     # 💰 Storage Fullness Check
     # ============================================================
 
-    def _storage_fill_levels(self):
-        return get_storage_fill_levels()
-
     def _storages_full(self, thresh=0.90):
         """True when BOTH gold and elixir storages are (nearly) full —
-        attacking would waste time since the loot can't be stored."""
+        attacking would waste time since the loot can't be stored. Logs what
+        the counters hold, so the reading can be checked against the game."""
         try:
-            levels = self._storage_fill_levels()
-            full = all(v >= thresh for v in levels.values())
-            if full:
-                print(f"💰 Storages full (gold {levels['gold']:.0%}, elixir {levels['elixir']:.0%}) — skipping attack")
+            levels = Storage_Reader.read()
+            full = all(levels[name]["level"] is not None and levels[name]["level"] >= thresh
+                       for name in ("gold", "elixir"))
+            print(f"💰 Storages: {Storage_Reader.describe(levels)}" + (" — full, skipping attack" if full else ""))
             return full
         except (KeyboardInterrupt, SystemExit): raise
         except Exception as e:

@@ -1,13 +1,14 @@
-"""Check the bot's screen readers (upgrade panel, storage bars, battle
-result) against the reference frames.
+"""Check the bot's screen readers (upgrade panel, battle result, dialogs)
+against the reference frames; scripts/storage_eval.py checks the resource
+counters and storage bars.
 
 Every frame's manifest entry says whether the upgrade panel is open (and on
 which tab), whether an upgrade dialog is up, and for hand-checked panel
-frames the name/affordable/new state of each purchasable row, for home
-frames how full the gold and elixir storages are, and where a battle result's
-"Return Home" button, a watched defense's "Return Home", the rate dialog's
-LATER, an idle helper's "Available" tag and the helper dialog's topmost Assign
-and Confirm are (no other frame may show them). Exit 0 when everything agrees:
+frames the name/affordable/new state of each purchasable row, and where a
+battle result's "Return Home" button, a watched defense's "Return Home", the
+rate dialog's LATER, an idle helper's "Available" tag and the helper dialog's
+topmost Assign and Confirm are (no other frame may show them). Exit 0 when
+everything agrees:
 
     .venv/bin/python scripts/panel_eval.py
 """
@@ -87,13 +88,6 @@ def main():
             if differs(got, info.get(key)):
                 errors += 1
                 print(f"XX {rel}: {asset} at {got}, expected {info.get(key)}")
-        if "storage" in info:
-            levels = utils.get_storage_fill_levels()
-            for res, want_level in info["storage"].items():
-                checks += 1
-                if abs(levels[res] - want_level) > 0.02:
-                    errors += 1
-                    print(f"XX {rel}: {res} storage {levels[res]:.3f} full, expected {want_level}")
     print(f"panel checks: {checks - errors}/{checks} ok")
     return errors == 0
 

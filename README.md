@@ -97,7 +97,8 @@
 
 ## After a Clash of Clans Update
 Game updates move buttons and restyle screens. [tests/ui_frames](tests/ui_frames) keeps pixel-exact screenshots of each UI the bot was adapted to, and [manifest.json](tests/ui_frames/manifest.json) records what each one shows and what the bot must read from it.
-* `python scripts/panel_eval.py` and `python scripts/loot_eval.py` check the bot's screen readers (upgrade panel, storage bars, battle result, dialogs, loot) against those frames; exit code 0 means all agree
+* `python scripts/panel_eval.py` and `python scripts/loot_eval.py` check the bot's screen readers (upgrade panel, battle result, dialogs, loot) against those frames; exit code 0 means all agree
+* `python scripts/storage_eval.py` checks that the gold, elixir and dark elixir counters are read digit for digit and each storage's fill within 1%, that a covered or dimmed counter reads as nothing, and that attacks stop only once gold and elixir are both 90% full
 * `python scripts/ui_probe.py <screenshot> scan` scores every template on a screenshot, and `eval "<expression>"` runs any bot function on it
 * `python scripts/capture_frame.py <folder/name>` saves the live BlueStacks screen as a new reference frame
 * `python scripts/pause_eval.py` checks with a fake device that a Pause lets no tap, swipe, screenshot or app command through and that the bot then starts over

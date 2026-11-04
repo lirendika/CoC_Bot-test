@@ -244,22 +244,36 @@ class Upgrader:
     # ============================================================
 
     def get_resources(self, timeout=60):
+        """Gold, elixir and dark elixir the village holds, read off the
+        counters' digits (see Storage_Reader)."""
         import time
-        
+
         start = time.time()
         while time.time() < start + timeout:
-            try:
-                section = Frame_Handler.get_frame_section(0.8, 0, 0.96, 0.30, high_contrast=True, thresh=240)
-                if configs.DEBUG: Frame_Handler.save_frame(section, "debug/resources.png")
-                text = OCR_Handler.get_text(section)
-                if configs.DEBUG: print(text)
-                gold, elixir, dark_elixir = [int(fix_digits(s.replace(' ', ''))) for s in text]
-                return {"gold": gold, "elixir": elixir, "dark_elixir": dark_elixir}
-            except (KeyboardInterrupt, SystemExit): raise
-            except Exception as e:
-                if configs.DEBUG: print("get_resources", e)
+            levels = Storage_Reader.read()
+            if levels["gold"]["amount"] is not None and levels["elixir"]["amount"] is not None:
+                return {"gold": levels["gold"]["amount"], "elixir": levels["elixir"]["amount"],
+                        "dark_elixir": levels["dark"]["amount"] or 0}
             time.sleep(0.5)
         raise Exception("Failed to get resources")
+
+    def _wall_storage_ready(self, min_pct):
+        """Wall focus only dumps loot into walls once gold or elixir is at
+        least min_pct full, so farming and walls alternate. The panel covers
+        the counters, so it closes first; counters that can't be read don't
+        hold the walls back."""
+        try:
+            Upgrade_Panel.close()
+            levels = Storage_Reader.read()
+            known = [levels[name]["level"] for name in ("gold", "elixir") if levels[name]["level"] is not None]
+            if known and max(known) < min_pct:
+                print(f"🧱 Wall focus: storages below {min_pct:.0%} "
+                      f"({Storage_Reader.describe(levels, ('gold', 'elixir'))}) — farming first")
+                return False
+        except (KeyboardInterrupt, SystemExit): raise
+        except Exception as e:
+            if configs.DEBUG: print("wall_storage_ready", e)
+        return True
 
     def home_lab_available(self, timeout=60):
         import time
@@ -966,14 +980,7 @@ class Upgrader:
             # Only dump loot into walls once a storage is reasonably full, so
             # farming and wall upgrades alternate (attack → fill → dump → attack)
             min_pct = Task_Handler.setting("wall_focus_min_storage_pct", getattr(configs, "WALL_FOCUS_MIN_STORAGE_PCT", 50)) / 100
-            try:
-                levels = get_storage_fill_levels()
-                storage_ready = max(levels.values()) >= min_pct
-                if not storage_ready:
-                    print(f"🧱 Wall focus: storages below {min_pct:.0%} "
-                          f"(gold {levels['gold']:.0%}, elixir {levels['elixir']:.0%}) — farming first")
-            except (KeyboardInterrupt, SystemExit): raise
-            except: storage_ready = True
+            storage_ready = self._wall_storage_ready(min_pct)
 
             wall_batches = 0
             while storage_ready and wall_batches < MAX_UPGRADES_PER_CHECK:
