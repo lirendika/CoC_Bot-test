@@ -11,6 +11,9 @@ class CoC_Bot:
         # still booting, ADB offline) force-killed the user's emulator on exit
         BlueStacks_Manager.init()
         Pause_Handler.start()
+        # CoC closed some other way (by hand, BlueStacks restarting) left the
+        # cache that turns Supercell ID black in the next CoC: start clean
+        if not coc_running(): clear_coc_cache()
         self.upgrader = Upgrader()
         self.attacker = Attacker()
 

@@ -672,14 +672,70 @@ def stop_coc():
     Pause_Handler.check()
     print("Stopping CoC...", datetime.now().strftime("%I:%M:%S %p %m-%d-%Y"))
     # Home first and the force-stop a moment later: in the background CoC
-    # has paused and finished the files it was writing. A kill in the
-    # middle of a write can leave a broken file in its cache; on 2026-11-04
-    # Supercell ID's account switcher stayed black until CoC's cache was
-    # cleared (Android Settings > Apps > Clash of Clans > Storage & cache)
+    # has paused and finished the files it was writing
     to_system_home()
     Pause_Handler.sleep(2)
     ADB_Manager.adbutils_device.shell("am force-stop com.supercell.clashofclans")
+    # So the next CoC, started by the bot or by hand, can switch accounts
+    clear_coc_cache()
     print("CoC stopped", datetime.now().strftime("%I:%M:%S %p %m-%d-%Y"))
+
+def coc_running():
+    return bool(ADB_Manager.adbutils_device.shell("pidof com.supercell.clashofclans").strip())
+
+def clear_coc_cache():
+    """Press Clear cache for CoC in Android Settings (App info > Storage &
+    cache), never Clear storage: the account stays logged in. Supercell
+    ID's screens (switch account, Open) draw black in every CoC session
+    that starts on the cache an earlier session wrote on this BlueStacks,
+    and fine in one that starts on an empty cache (tested 2026-11-04).
+    `pm clear --cache-only` hangs here and leaves what matters, so this
+    goes through Settings, clicking by exact text. Call it with CoC
+    stopped; ends on the Android home screen. True when cleared."""
+    import time
+    if not getattr(configs, "CLEAR_COC_CACHE", True): return False
+    cleared, problem = False, None
+    try:
+        # The u2 device itself: selectors are calls (d(text=...)), which
+        # DeviceProxy doesn't pass through
+        d = ADB_Manager.uiautomator_device._real_device
+        for _ in range(2):                       # a second go from scratch
+            Pause_Handler.check()
+            d.shell("am force-stop com.android.settings")
+            d.shell("am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:com.supercell.clashofclans")
+            entry = d(text="Storage & cache")
+            for _ in range(4):                   # just below the fold
+                Pause_Handler.check()
+                if entry.wait(timeout=2): break
+                d.swipe(960, 900, 960, 500, 0.6) # slow: no fling past it
+            else:
+                problem = "Storage & cache not found"; continue
+            time.sleep(0.6)                      # let the list settle
+            Pause_Handler.check()
+            entry.click()
+            button = d(text="CLEAR CACHE")
+            if not button.wait(timeout=6):
+                problem = "CLEAR CACHE not found"; continue
+            Pause_Handler.check()
+            if button.info.get("enabled"): button.click()
+            # Android greys the button out once the cache is empty
+            for _ in range(10):
+                if not button.info.get("enabled"): cleared = True; break
+                time.sleep(0.3)
+            if cleared: break
+            problem = "cache still there after CLEAR CACHE"
+        if not cleared:
+            print("⚠️ Couldn't clear CoC's cache (Supercell ID may show black):", problem)
+    except (KeyboardInterrupt, SystemExit): raise   # a Pause too
+    except Exception as e:
+        print("⚠️ Couldn't clear CoC's cache (Supercell ID may show black):", e)
+    finally:
+        try:
+            Pause_Handler.check()
+            ADB_Manager.adbutils_device.shell("am force-stop com.android.settings")
+            to_system_home()
+        except Exception: pass
+    return cleared
 
 def update_coc(timeout=10, from_in_game=False):
     import uiautomator2 as u2

@@ -158,6 +158,7 @@ SPAM_EVENT_RAGE_SPACING = 0.13   # minimum normalized gap between rage-spell dro
 ########################
 DEBUG = False
 DISABLE_DEVICE_SLEEP = True # keep the computer awake while the bot runs (no password; a closed laptop lid still sleeps it)
+CLEAR_COC_CACHE = True # press Clear cache for CoC in Android Settings whenever the bot closes CoC, so Supercell ID (switch account) doesn't show black next time; the account stays logged in
 WINDOW_DIMS = (1920, 1080) # width, height
 ADB_ABS_DIR = "" # absolute path to dir with adb executable, leave empty to use system PATH
 BLUESTACKS_BIN_PATH = "" # absolute path to Bluestacks executable, leave empty to use system defaults
