@@ -73,7 +73,11 @@ def gui_launch(args):
                 if p and p.is_alive():
                     p.terminate()
                     p.join()
-    except (EOFError, KeyboardInterrupt, SystemExit):
+    except (EOFError, KeyboardInterrupt, SystemExit) as e:
+        gui = get_gui()
+        # One line in debug/launcher.log, so a window that vanished on its
+        # own (exit code set before any close) can be told from a normal close
+        print(f"CoC Bot closing ({type(e).__name__}; window exit {gui.window_proc.exitcode}, server exit {gui.server_proc.exitcode})", flush=True)
         get_gui().stop()
         pipe.close()
         for p in procs.values():
