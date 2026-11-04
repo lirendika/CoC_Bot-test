@@ -737,28 +737,53 @@ def clear_coc_cache():
         except Exception: pass
     return cleared
 
+def wait_for_ui(obj, timeout=0, step=0.5):
+    """Wait for a uiautomator2 selector (d(text=...)) to show, in short
+    waits with a pause check before each, so a Pause raises Bot_Paused
+    instead of letting the click after the wait through. True once it's
+    on screen; timeout=0 looks once."""
+    import time
+    end = time.time() + timeout
+    while True:
+        Pause_Handler.check()
+        if obj.wait(timeout=min(step, max(0, end - time.time()))): return True
+        if time.time() >= end: return False
+
 def update_coc(timeout=10, from_in_game=False):
-    import uiautomator2 as u2
-    Pause_Handler.check()
-    conn = ADB_Manager.uiautomator_device
-    if not from_in_game:
-        ADB_Manager.adbutils_device.shell('am start -a android.intent.action.VIEW -d "market://details?id=com.supercell.clashofclans"')
-    else:
-        try:
-            conn(text="UPDATE").click(timeout=0)
-        except (KeyboardInterrupt, SystemExit): raise
-        except:
-            print("Failed to click update button")
-            if not from_in_game: to_system_home()
-            return
-    
+    """Press Update for CoC in Google Play; True once pressed (the download
+    goes on by itself). from_in_game: start_coc asks on every loading
+    screen, and when CoC shows its update dialog, its UPDATE opens CoC's
+    Play Store page (no dialog: one quick look, nothing printed).
+    Otherwise this opens that page and goes home after. Presses only a
+    button reading exactly Update (any case) in CoC or Google Play."""
+    updated = False
     try:
-        conn(text="Update").click(timeout=timeout)
-    except (KeyboardInterrupt, SystemExit): raise
-    except:
-        print("Failed to click update button")
-        pass
+        Pause_Handler.check()
+        # The u2 device itself: selectors are calls (d(text=...)), which
+        # DeviceProxy doesn't pass through
+        d = ADB_Manager.uiautomator_device._real_device
+        if from_in_game:
+            dialog = d(textMatches="(?i)update", packageNameMatches=r"com\.supercell\.clashofclans|com\.android\.vending")
+            if not wait_for_ui(dialog): return False
+            Pause_Handler.check()
+            print("🔼 CoC asks for an update: opening Google Play")
+            dialog.click(timeout=0)
+        else:
+            Pause_Handler.check()
+            ADB_Manager.adbutils_device.shell('am start -a android.intent.action.VIEW -d "market://details?id=com.supercell.clashofclans"')
+        button = d(textMatches="(?i)update", packageName="com.android.vending")
+        if wait_for_ui(button, timeout):
+            Pause_Handler.check()
+            print("🔼 Updating CoC in Google Play")
+            button.click(timeout=0)
+            updated = True
+        else:
+            print("🔼 Google Play shows no Update for CoC (up to date, or already updating)")
+    except (KeyboardInterrupt, SystemExit): raise   # a Pause too
+    except Exception as e:
+        print("⚠️ Couldn't update CoC:", e)
     if not from_in_game: to_system_home()
+    return updated
 
 def to_builder_base(ref_cache=False):
     import cv2, time, numpy as np
