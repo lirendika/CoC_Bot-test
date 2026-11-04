@@ -671,8 +671,14 @@ def stop_coc():
     from datetime import datetime
     Pause_Handler.check()
     print("Stopping CoC...", datetime.now().strftime("%I:%M:%S %p %m-%d-%Y"))
-    ADB_Manager.adbutils_device.shell("am force-stop com.supercell.clashofclans")
+    # Home first and the force-stop a moment later: in the background CoC
+    # has paused and finished the files it was writing. A kill in the
+    # middle of a write can leave a broken file in its cache; on 2026-11-04
+    # Supercell ID's account switcher stayed black until CoC's cache was
+    # cleared (Android Settings > Apps > Clash of Clans > Storage & cache)
     to_system_home()
+    Pause_Handler.sleep(2)
+    ADB_Manager.adbutils_device.shell("am force-stop com.supercell.clashofclans")
     print("CoC stopped", datetime.now().strftime("%I:%M:%S %p %m-%d-%Y"))
 
 def update_coc(timeout=10, from_in_game=False):

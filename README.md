@@ -104,3 +104,6 @@ Game updates move buttons and restyle screens. [tests/ui_frames](tests/ui_frames
 * `python scripts/rest_eval.py` checks offline that only a round with nothing to do closes CoC and rests, and that a switch flipped in the app or a Pause ends the rest
 * `python scripts/touch_check.py` opens and closes the Build panel, switches its tabs, swipes its list and pinches the village on the live game (nothing bought), reporting every gesture the game missed: run it after changing BlueStacks' frame rate, cores or memory
 * `python scripts/upgrade_dryrun.py` drives the real upgrade flows on the live game while blocking every tap that would spend resources (`upgrade_dryrun.py helpers` walks the Builder's Apprentice and Lab Assistant flows up to their blocked Confirm while both are idle)
+
+## Troubleshooting
+* Supercell ID screens (switch account, Open) stay black while the game itself shows fine: in BlueStacks open Android Settings > Apps > Clash of Clans > Storage & cache, press __Clear cache__ and start CoC again. Your account stays logged in. Never press Clear storage, which logs you out, and logging back in goes through those same screens
