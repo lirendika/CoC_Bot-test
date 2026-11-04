@@ -61,16 +61,16 @@ def init_instance(id):
             if configs.DEBUG: print("init_instance", e)
 
 def disable_sleep():
-    import sys, subprocess, ctypes, os, shutil
-    
+    """Keep the computer awake for as long as the calling process lives."""
+    import sys, subprocess, ctypes, os
+
     if sys.platform == "darwin":
-        sleep_helper_temp = Path(__file__).parent / "sleep_helper.sh"
-        sleep_helper_permanent = APP_DATA_DIR / "sleep_helper.sh"
-        shutil.copyfile(sleep_helper_temp, sleep_helper_permanent)
-        os.chmod(sleep_helper_permanent, 0o755)
-        cmd = f'do shell script "{sleep_helper_permanent} {os.getpid()}" with administrator privileges'
+        # caffeinate holds macOS's no-sleep assertion until this process
+        # exits, and needs no password: the pmset helper it replaces asked
+        # for the admin password at every start. A closed laptop lid still
+        # sleeps the Mac
         subprocess.Popen(
-            ["osascript", "-e", cmd],
+            ["/usr/bin/caffeinate", "-i", "-s", "-w", str(os.getpid())],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True

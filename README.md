@@ -87,7 +87,7 @@
     * Create an Automation task that runs when CoC opens and is set to run immediately
 
 5. Start the bot: `python src/main.py`
-    > __Note__: On MacOS, if `DISABLE_DEVICE_SLEEP = True` in `configs.py`, the user password is required to toggle the `disablesleep` flag in power management settings
+    > __Note__: With `DISABLE_DEVICE_SLEEP = True` in `configs.py` the computer stays awake while the bot runs, no password needed (on MacOS through `caffeinate`; closing a laptop's lid still puts it to sleep)
 
     > 💡 __Tip__: The BlueStacks window can be minimized without disrupting the bot as all interactions are handled through Android Debug Bridge
 

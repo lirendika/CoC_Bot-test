@@ -49,7 +49,9 @@ def gui_launch(args):
     pipe = init_gui(args.id)
     args.gui_port = get_gui().server_port
     
-    if utils.DISABLE_DEVICE_SLEEP: Process(target=utils.disable_sleep).start()
+    # In this process, not a child one: the Mac stays awake for as long as
+    # the process that asked lives, and a child Process ended right away
+    if utils.DISABLE_DEVICE_SLEEP: utils.disable_sleep()
 
     if args.id is not None:
         p = Process(target=launch_proc, args=(args,))
