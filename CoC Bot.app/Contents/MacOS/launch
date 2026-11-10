@@ -1,0 +1,80 @@
+#!/bin/bash
+# CoC Bot desktop app — double-click opens the bot's dashboard window directly.
+# No Terminal: the bot runs in the background and its window is the app.
+# Closing the CoC Bot window stops the bot.
+#
+# The app lives inside the bot folder: Contents/MacOS/launch -> ../../.. = bot dir
+
+BOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+PYTHON="$BOT_DIR/.venv/bin/python"
+
+# Finder/Dock start apps with a bare PATH (/usr/bin:/bin:...) that lacks
+# Homebrew — adb lives there, so the bot couldn't reach BlueStacks at all
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$PATH"
+MAIN="$BOT_DIR/src/main.py"
+LOG_DIR="$BOT_DIR/debug"
+LOG="$LOG_DIR/launcher.log"
+
+alert() {
+    osascript -e "display alert \"CoC Bot\" message \"$1\" as critical" >/dev/null 2>&1
+}
+
+notify() {
+    osascript -e "display notification \"$1\" with title \"CoC Bot\"" >/dev/null 2>&1
+}
+
+if [ ! -x "$PYTHON" ]; then
+    alert "The Python environment is missing (.venv).
+
+Open Terminal in the CoC_Bot folder and run it once:
+
+python3.11 -m venv .venv && .venv/bin/python -m pip install -r src/requirements.txt"
+    exit 1
+fi
+
+if [ ! -f "$MAIN" ]; then
+    alert "src/main.py not found.
+
+Keep CoC Bot.app inside the CoC_Bot folder — put an alias on the Desktop instead of moving the app itself."
+    exit 1
+fi
+
+# One bot per BlueStacks: a second copy would fight the first over the same
+# taps. Opening the app again brings the running bot's window to the front
+if pgrep -f "$MAIN" >/dev/null 2>&1; then
+    if [ -n "$(lsappinfo find bundleid=org.python.python 2>/dev/null)" ]; then
+        open -b org.python.python >/dev/null 2>&1
+    else
+        notify "Already running — use the open CoC Bot window."
+    fi
+    exit 0
+fi
+
+mkdir -p "$LOG_DIR"
+cd "$BOT_DIR" || exit 1
+export PYTHONDONTWRITEBYTECODE=1
+
+# No "Starting…" notification: the window itself shows up a moment later
+{
+    echo
+    echo "===== $(date '+%Y-%m-%d %H:%M:%S') launch ====="
+} >>"$LOG"
+
+# Detach so the app finishes launching while the bot keeps running.
+# Startup output (before the bot's own debug/main.log takes over) goes to
+# debug/launcher.log, so a failed start can still be diagnosed.
+nohup "$PYTHON" "$MAIN" --gui --id main >>"$LOG" 2>&1 &
+BOT_PID=$!
+disown
+# Stay until the bot's window has registered with macOS: when this script
+# ends first, macOS takes the app launch as failed and kills the bot with
+# it (no window, nothing logged). The old "Starting…" notification happened
+# to cover that gap; a fixed wait lost the race now and then
+for _ in $(seq 1 120); do                         # at most ~30 s
+    kill -0 "$BOT_PID" 2>/dev/null || break       # the bot ended by itself
+    for child in $(pgrep -P "$BOT_PID"); do
+        [ -n "$(lsappinfo find pid="$child" 2>/dev/null)" ] && break 2
+    done
+    sleep 0.25
+done
+exit 0
